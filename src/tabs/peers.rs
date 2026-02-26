@@ -34,7 +34,7 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         .iter()
         .map(|p| {
             let dir = if p.inbound { "in" } else { "out" };
-            let dir_color = if p.inbound { Color::Cyan } else { Color::Green };
+            let dir_color = if p.inbound { Color::Yellow } else { Color::Green };
             let ping = p
                 .pingtime
                 .map(|t| format!("{:.0}ms", t * 1000.0))
