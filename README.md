@@ -12,11 +12,16 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
 - **Network** — connection details, per-network reachability, local addresses
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
+- **RPC** — browse all non-wallet RPC methods (blockchain, mempool, mining, network, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse all 56 wallet RPC methods with inline help, type arguments, execute calls, and view results
 
 ### Transaction search
 
 Press `/` from any tab to search for a transaction by txid. Results show whether the transaction is in the mempool (with fee, size, ancestor/descendant info) or confirmed on-chain (with confirmation count, block age).
+
+### RPC explorer
+
+The RPC tab lists every non-wallet RPC method from the Bitcoin Core API (blockchain, mempool, mining, network, rawtransactions, etc.). Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input. These calls go directly to the node without any wallet context.
 
 ### Wallet RPC explorer
 
@@ -95,18 +100,18 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 |-----|--------|
 | `Esc` | Return to tab bar |
 
-#### Wallet — methods pane
+#### RPC / Wallet — methods pane
 
 | Key | Action |
 |-----|--------|
 | `j` / `k` / `↑` / `↓` | Navigate method list |
 | `g` / `G` | Jump to first / last method |
 | `/` | Search/filter methods |
-| `w` | Open wallet selector |
+| `w` | Open wallet selector (Wallet tab only) |
 | `Tab` | Switch to detail pane |
 | `Esc` | Return to tab bar |
 
-#### Wallet — detail pane
+#### RPC / Wallet — detail pane
 
 | Key | Action |
 |-----|--------|

@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Tabs},
 };
 
-use crate::app::{App, Focus, InputMode, SearchResult, Tab, WalletPane};
+use crate::app::{App, BrowserPane, Focus, InputMode, SearchResult, Tab};
 use crate::format::*;
 
 pub fn render(app: &App, frame: &mut Frame) {
@@ -58,6 +58,7 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
         Tab::Mempool => crate::tabs::mempool::render(app, frame, area),
         Tab::Network => crate::tabs::network::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
+        Tab::Rpc => crate::tabs::rpc::render(app, frame, area),
         Tab::Wallet => crate::tabs::wallet::render(app, frame, area),
     }
 }
@@ -85,41 +86,53 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                     Span::styled("q", hl),
                     Span::raw(" quit"),
                 ],
-                Focus::Content if app.tab == Tab::Wallet => match app.wallet.pane {
-                    WalletPane::Methods => vec![
-                        Span::styled("j/k", hl),
-                        Span::raw(" methods  "),
-                        Span::styled("/", hl),
-                        Span::raw(" search  "),
-                        Span::styled("w", hl),
-                        Span::raw(" wallet  "),
-                        Span::styled("Tab", hl),
-                        Span::raw(" pane  "),
-                        Span::styled("Esc", hl),
-                        Span::raw(" back"),
-                    ],
-                    WalletPane::Detail => {
-                        let mut spans = vec![
-                            Span::styled("Enter", hl),
-                            Span::raw(" call  "),
-                            Span::styled("j/k", hl),
-                            Span::raw(" scroll  "),
-                            Span::styled("C-u/d", hl),
-                            Span::raw(" page  "),
-                            Span::styled("/", hl),
-                            Span::raw(" search  "),
-                        ];
-                        if !app.wallet.detail_matches.is_empty() {
-                            spans.push(Span::styled("n/N", hl));
-                            spans.push(Span::raw(" next/prev  "));
+                Focus::Content if app.tab == Tab::Wallet || app.tab == Tab::Rpc => {
+                    let browser = if app.tab == Tab::Wallet {
+                        &app.wallet.browser
+                    } else {
+                        &app.rpc
+                    };
+                    match browser.pane {
+                        BrowserPane::Methods => {
+                            let mut spans = vec![
+                                Span::styled("j/k", hl),
+                                Span::raw(" methods  "),
+                                Span::styled("/", hl),
+                                Span::raw(" search  "),
+                            ];
+                            if app.tab == Tab::Wallet {
+                                spans.push(Span::styled("w", hl));
+                                spans.push(Span::raw(" wallet  "));
+                            }
+                            spans.push(Span::styled("Tab", hl));
+                            spans.push(Span::raw(" pane  "));
+                            spans.push(Span::styled("Esc", hl));
+                            spans.push(Span::raw(" back"));
+                            spans
                         }
-                        spans.push(Span::styled("Tab", hl));
-                        spans.push(Span::raw(" pane  "));
-                        spans.push(Span::styled("Esc", hl));
-                        spans.push(Span::raw(" back"));
-                        spans
+                        BrowserPane::Detail => {
+                            let mut spans = vec![
+                                Span::styled("Enter", hl),
+                                Span::raw(" call  "),
+                                Span::styled("j/k", hl),
+                                Span::raw(" scroll  "),
+                                Span::styled("C-u/d", hl),
+                                Span::raw(" page  "),
+                                Span::styled("/", hl),
+                                Span::raw(" search  "),
+                            ];
+                            if !browser.detail_matches.is_empty() {
+                                spans.push(Span::styled("n/N", hl));
+                                spans.push(Span::raw(" next/prev  "));
+                            }
+                            spans.push(Span::styled("Tab", hl));
+                            spans.push(Span::raw(" pane  "));
+                            spans.push(Span::styled("Esc", hl));
+                            spans.push(Span::raw(" back"));
+                            spans
+                        }
                     }
-                },
+                }
                 Focus::Content => vec![Span::styled("Esc", hl), Span::raw(" back")],
             },
             InputMode::Search => vec![
@@ -128,7 +141,7 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::styled("Esc", hl),
                 Span::raw(" cancel"),
             ],
-            InputMode::WalletArg => vec![
+            InputMode::ArgInput => vec![
                 Span::styled("Enter", hl),
                 Span::raw(" send  "),
                 Span::styled("Esc", hl),

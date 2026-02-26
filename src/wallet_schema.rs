@@ -42,13 +42,21 @@ pub struct RpcParam {
 }
 
 pub fn load_wallet_methods() -> Vec<RpcMethod> {
+    load_methods(|cat| cat == Some("wallet"))
+}
+
+pub fn load_non_wallet_methods() -> Vec<RpcMethod> {
+    load_methods(|cat| cat != Some("wallet"))
+}
+
+fn load_methods(filter: impl Fn(Option<&str>) -> bool) -> Vec<RpcMethod> {
     let json = include_str!("../openrpc.json");
     let spec: OpenRpc = serde_json::from_str(json).expect("invalid openrpc.json");
 
     let mut methods: Vec<RpcMethod> = spec
         .methods
         .into_iter()
-        .filter(|m| m.category.as_deref() == Some("wallet"))
+        .filter(|m| filter(m.category.as_deref()))
         .map(|m| RpcMethod {
             name: m.name,
             description: m.description.unwrap_or_default(),

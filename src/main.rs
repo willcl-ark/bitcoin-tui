@@ -154,10 +154,12 @@ async fn run(
             });
         }
 
-        if app.wallet.calling {
-            app.wallet.calling = false;
-            let method = app.wallet.methods[app.wallet.selected].name.clone();
-            let arg_text = app.wallet.arg_input.clone();
+        if app.wallet.browser.calling {
+            app.wallet.browser.calling = false;
+            let method = app.wallet.browser.methods[app.wallet.browser.selected]
+                .name
+                .clone();
+            let arg_text = app.wallet.browser.arg_input.clone();
             let wallet_name = app.wallet.wallet_name.clone();
             let rpc = rpc.clone();
             let tx = tx.clone();
@@ -175,6 +177,24 @@ async fn run(
                     Err(e) => Err(e),
                 };
                 let _ = tx.send(Event::WalletRpcComplete(Box::new(result)));
+            });
+        }
+
+        if app.rpc.calling {
+            app.rpc.calling = false;
+            let method = app.rpc.methods[app.rpc.selected].name.clone();
+            let arg_text = app.rpc.arg_input.clone();
+            let rpc = rpc.clone();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let params = parse_args(&arg_text);
+                let result = match params {
+                    Ok(p) => rpc.call_raw(&method, p, None).await.map(|v| {
+                        serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string())
+                    }),
+                    Err(e) => Err(e),
+                };
+                let _ = tx.send(Event::RpcComplete(Box::new(result)));
             });
         }
 
