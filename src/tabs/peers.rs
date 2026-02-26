@@ -26,7 +26,7 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
     ])
     .style(
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD),
     );
 

@@ -157,7 +157,7 @@ fn render_detail(
     lines.push(Line::from(Span::styled(
         &method.name,
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));

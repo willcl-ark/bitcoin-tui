@@ -26,10 +26,10 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
     let selected = Tab::ALL.iter().position(|t| *t == app.tab).unwrap_or(0);
 
     let highlight = if app.focus == Focus::Content {
-        Style::default().fg(Color::Yellow)
+        Style::default().fg(Color::Magenta)
     } else {
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD)
     };
 
@@ -56,7 +56,7 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
-    let hl = Style::default().fg(Color::Yellow);
+    let hl = Style::default().fg(Color::Magenta);
 
     let left_spans = match app.input_mode {
         InputMode::Normal => match app.focus {

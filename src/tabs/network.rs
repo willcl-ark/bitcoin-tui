@@ -80,7 +80,7 @@ fn render_networks(app: &App, frame: &mut Frame, area: Rect) {
 
     let header = Row::new(["Network", "Reachable", "Limited", "Proxy"]).style(
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD),
     );
 
@@ -135,7 +135,7 @@ fn render_local_addresses(app: &App, frame: &mut Frame, area: Rect) {
 
     let header = Row::new(["Address", "Port", "Score"]).style(
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Color::Magenta)
             .add_modifier(Modifier::BOLD),
     );
 
