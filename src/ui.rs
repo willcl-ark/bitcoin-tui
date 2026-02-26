@@ -162,6 +162,12 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::styled("Esc", hl),
                 Span::raw(" back"),
             ],
+            Focus::Content if app.tab == Tab::Peers => vec![
+                Span::styled("v", hl),
+                Span::raw(" addr/agent  "),
+                Span::styled("Esc", hl),
+                Span::raw(" back"),
+            ],
             Focus::Content => vec![Span::styled("Esc", hl), Span::raw(" back")],
         },
         InputMode::TxSearch => vec![

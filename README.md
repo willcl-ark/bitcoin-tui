@@ -100,6 +100,13 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 |-----|--------|
 | `Esc` | Return to tab bar |
 
+#### Peers tab
+
+| Key | Action |
+|-----|--------|
+| `v` | Toggle peer identity column between address and user agent |
+| `Esc` | Return to tab bar |
+
 #### Transactions tab
 
 | Key | Action |

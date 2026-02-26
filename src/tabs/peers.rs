@@ -21,8 +21,23 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
+    let peer_identity_header = if app.peers_show_user_agent {
+        "User Agent"
+    } else {
+        "Address"
+    };
+
     let header = Row::new([
-        "ID", "Address", "Type", "Net", "Dir", "Ping", "Recv", "Sent", "Height", "V2",
+        "ID",
+        peer_identity_header,
+        "Type",
+        "Net",
+        "Dir",
+        "Ping",
+        "Recv",
+        "Sent",
+        "Height",
+        "V2",
     ])
     .style(
         Style::default()
@@ -54,10 +69,19 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
             } else {
                 "—".into()
             };
+            let peer_identity = if app.peers_show_user_agent {
+                if p.subver.is_empty() {
+                    "—".to_string()
+                } else {
+                    p.subver.clone()
+                }
+            } else {
+                p.addr.clone()
+            };
 
             Row::new(vec![
                 Cell::from(p.id.to_string()),
-                Cell::from(p.addr.clone()),
+                Cell::from(peer_identity),
                 Cell::from(abbreviate_conn_type(&p.connection_type)),
                 Cell::from(p.network.clone()),
                 Cell::from(dir).style(Style::default().fg(dir_color)),

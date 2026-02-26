@@ -334,6 +334,7 @@ pub struct App {
     pub mempool: Option<MempoolInfo>,
     pub mining: Option<MiningInfo>,
     pub peers: Option<Vec<PeerInfo>>,
+    pub peers_show_user_agent: bool,
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
 
@@ -361,6 +362,7 @@ impl Default for App {
             mempool: None,
             mining: None,
             peers: None,
+            peers_show_user_agent: false,
             recent_blocks: Vec::new(),
             last_tip: None,
             rpc_error: None,
@@ -604,6 +606,15 @@ impl App {
                     Tab::Psbt => self.handle_psbt_content(key),
                     Tab::Transactions => self.handle_transactions_content(key),
                     Tab::Zmq => self.handle_zmq_content(key),
+                    Tab::Peers => match key.code {
+                        KeyCode::Char('v') => {
+                            self.peers_show_user_agent = !self.peers_show_user_agent;
+                        }
+                        KeyCode::Esc => {
+                            self.focus = Focus::TabBar;
+                        }
+                        _ => {}
+                    },
                     _ => {
                         if key.code == KeyCode::Esc {
                             self.focus = Focus::TabBar;
