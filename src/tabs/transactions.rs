@@ -89,14 +89,18 @@ fn render_search_input(app: &App, frame: &mut Frame, area: Rect) {
 
 fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Rect) {
     let lines = match result {
-        SearchResult::Mempool { txid, entry } => {
+        SearchResult::Mempool {
+            txid,
+            entry,
+            decoded,
+        } => {
             let fee_rate = if entry.vsize > 0 {
                 let fee_sats = entry.fees.base.as_f64() * 100_000_000.0;
                 format!("{:.1} sat/vB", fee_sats / entry.vsize as f64)
             } else {
                 "—".into()
             };
-            vec![
+            let mut lines = vec![
                 kv(
                     "Status",
                     "MEMPOOL",
@@ -120,9 +124,11 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
                     Style::default(),
                 ),
                 kv("Age", fmt_relative_time(entry.time), Style::default()),
-            ]
+            ];
+            append_decoded(&mut lines, decoded);
+            lines
         }
-        SearchResult::Confirmed { txid, tx } => {
+        SearchResult::Confirmed { txid, tx, decoded } => {
             let mut lines = vec![
                 kv(
                     "Status",
@@ -147,6 +153,7 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
             if let Some(bt) = tx.blocktime {
                 lines.push(kv("Block Age", fmt_relative_time(bt), Style::default()));
             }
+            append_decoded(&mut lines, decoded);
             lines
         }
     };
@@ -164,4 +171,19 @@ fn kv(key: &str, value: impl Into<String>, value_style: Style) -> Line<'static> 
         Span::styled(format!("{:<14}", key), Style::default().fg(Color::DarkGray)),
         Span::styled(Into::<String>::into(value), value_style),
     ])
+}
+
+fn append_decoded(lines: &mut Vec<Line<'static>>, decoded: &Option<String>) {
+    if let Some(decoded) = decoded {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Decoded",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        for line in decoded.lines() {
+            lines.push(Line::from(Span::raw(line.to_string())));
+        }
+    }
 }

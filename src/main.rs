@@ -395,18 +395,41 @@ async fn search_tx(rpc: &RpcClient, txid: &str) -> Result<SearchResult, String> 
     tracing::debug!(txid, "searching for tx");
     if let Ok(entry) = rpc.get_mempool_entry(txid).await {
         tracing::debug!(txid, "found in mempool");
+        let decoded = decode_tx_for_display(rpc, txid).await;
         return Ok(SearchResult::Mempool {
             txid: txid.to_string(),
             entry,
+            decoded,
         });
     }
     if let Ok(tx) = rpc.get_raw_transaction(txid).await {
         tracing::debug!(txid, "found confirmed");
+        let decoded = decode_tx_for_display(rpc, txid).await;
         return Ok(SearchResult::Confirmed {
             txid: txid.to_string(),
             tx,
+            decoded,
         });
     }
     tracing::debug!(txid, "tx not found");
     Err("Transaction not found".to_string())
+}
+
+async fn decode_tx_for_display(rpc: &RpcClient, txid: &str) -> Option<String> {
+    let hex = match rpc.get_raw_transaction_hex(txid).await {
+        Ok(hex) => hex,
+        Err(e) => {
+            tracing::debug!(txid, error = %e, "getrawtransaction hex failed");
+            return None;
+        }
+    };
+    match rpc.decode_raw_transaction(&hex).await {
+        Ok(decoded) => Some(
+            serde_json::to_string_pretty(&decoded).unwrap_or_else(|_| decoded.to_string()),
+        ),
+        Err(e) => {
+            tracing::debug!(txid, error = %e, "decoderawtransaction failed");
+            None
+        }
+    }
 }

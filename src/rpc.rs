@@ -209,6 +209,15 @@ impl RpcClient {
     pub async fn get_raw_transaction(&self, txid: &str) -> Result<RawTransaction, String> {
         self.call("getrawtransaction", json!([txid, 1])).await
     }
+
+    pub async fn get_raw_transaction_hex(&self, txid: &str) -> Result<String, String> {
+        self.call("getrawtransaction", json!([txid, false])).await
+    }
+
+    pub async fn decode_raw_transaction(&self, hex: &str) -> Result<Value, String> {
+        self.call_raw("decoderawtransaction", json!([hex]), None)
+            .await
+    }
 }
 
 pub fn default_cookie_path(network_subdir: Option<&str>) -> PathBuf {

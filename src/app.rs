@@ -100,8 +100,16 @@ pub struct PollResult {
 }
 
 pub enum SearchResult {
-    Mempool { txid: String, entry: MempoolEntry },
-    Confirmed { txid: String, tx: RawTransaction },
+    Mempool {
+        txid: String,
+        entry: MempoolEntry,
+        decoded: Option<String>,
+    },
+    Confirmed {
+        txid: String,
+        tx: RawTransaction,
+        decoded: Option<String>,
+    },
 }
 
 pub struct ZmqEntry {
