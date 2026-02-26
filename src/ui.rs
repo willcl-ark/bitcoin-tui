@@ -115,8 +115,10 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                         let mut spans = vec![
                             Span::styled("Enter", hl),
                             Span::raw(" call  "),
-                            Span::styled("↑/↓", hl),
+                            Span::styled("j/k", hl),
                             Span::raw(" scroll  "),
+                            Span::styled("C-u/d", hl),
+                            Span::raw(" page  "),
                             Span::styled("/", hl),
                             Span::raw(" search  "),
                         ];

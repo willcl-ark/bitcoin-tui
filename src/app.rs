@@ -548,7 +548,7 @@ impl App {
     }
 
     fn handle_detail_pane(&mut self, key: KeyEvent) {
-        use crossterm::event::KeyCode;
+        use crossterm::event::{KeyCode, KeyModifiers};
 
         match key.code {
             KeyCode::Enter => {
@@ -560,11 +560,17 @@ impl App {
                     self.wallet.editing_args = true;
                 }
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.wallet.result_scroll = self.wallet.result_scroll.saturating_add(1);
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.wallet.result_scroll = self.wallet.result_scroll.saturating_sub(1);
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.wallet.result_scroll = self.wallet.result_scroll.saturating_add(20);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.wallet.result_scroll = self.wallet.result_scroll.saturating_sub(20);
             }
             KeyCode::Char('n') => {
                 if !self.wallet.detail_matches.is_empty() {

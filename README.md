@@ -111,7 +111,8 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | Key | Action |
 |-----|--------|
 | `Enter` | Call method (opens arg input if method has parameters) |
-| `↑` / `↓` | Scroll |
+| `j` / `k` / `↑` / `↓` | Scroll |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
 | `/` | Search result text |
 | `n` / `N` | Next / previous match |
 | `Tab` | Switch to methods pane |
