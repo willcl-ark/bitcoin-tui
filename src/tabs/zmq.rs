@@ -25,6 +25,20 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
+    if let Some(err) = &zmq.error {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("ZMQ")
+            .border_style(Style::default().fg(Color::Red));
+        frame.render_widget(
+            Paragraph::new(err.clone())
+                .style(Style::default().fg(Color::Red))
+                .block(block),
+            area,
+        );
+        return;
+    }
+
     if zmq.entries.is_empty() {
         let block = Block::default()
             .borders(Borders::ALL)

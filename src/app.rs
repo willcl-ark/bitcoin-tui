@@ -118,6 +118,7 @@ pub enum Event {
     RpcComplete(Box<Result<String, String>>),
     WalletListComplete(Box<Result<Vec<String>, String>>),
     ZmqMessage(Box<ZmqEntry>),
+    ZmqError(String),
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -228,6 +229,7 @@ pub struct ZmqTab {
     pub scroll: u16,
     pub auto_scroll: bool,
     pub enabled: bool,
+    pub error: Option<String>,
 }
 
 impl Default for ZmqTab {
@@ -237,6 +239,7 @@ impl Default for ZmqTab {
             scroll: 0,
             auto_scroll: true,
             enabled: false,
+            error: None,
         }
     }
 }
@@ -366,6 +369,7 @@ impl App {
             }
             Event::ZmqMessage(entry) => {
                 const MAX_ENTRIES: usize = 2000;
+                self.zmq.error = None;
                 self.zmq.entries.push_back(*entry);
                 if self.zmq.entries.len() > MAX_ENTRIES {
                     self.zmq.entries.pop_front();
@@ -373,6 +377,9 @@ impl App {
                 if self.zmq.auto_scroll {
                     self.zmq.scroll = self.zmq.entries.len().saturating_sub(1) as u16;
                 }
+            }
+            Event::ZmqError(err) => {
+                self.zmq.error = Some(err);
             }
             Event::RpcComplete(result) => {
                 self.rpc.calling = false;

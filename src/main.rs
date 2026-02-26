@@ -299,16 +299,26 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
 
     tokio::spawn(async move {
         let mut socket = SubSocket::new();
-        if socket.connect(&addr).await.is_err() {
+        if let Err(e) = socket.connect(&addr).await {
+            let _ = tx.send(Event::ZmqError(format!("connect {}: {}", addr, e)));
             return;
         }
-        let _ = socket.subscribe("hashtx").await;
-        let _ = socket.subscribe("hashblock").await;
+        if let Err(e) = socket.subscribe("hashtx").await {
+            let _ = tx.send(Event::ZmqError(format!("subscribe hashtx: {}", e)));
+            return;
+        }
+        if let Err(e) = socket.subscribe("hashblock").await {
+            let _ = tx.send(Event::ZmqError(format!("subscribe hashblock: {}", e)));
+            return;
+        }
 
         loop {
             let msg: ZmqMessage = match socket.recv().await {
                 Ok(msg) => msg,
-                Err(_) => break,
+                Err(e) => {
+                    let _ = tx.send(Event::ZmqError(format!("recv: {}", e)));
+                    break;
+                }
             };
             let frames: Vec<_> = msg.into_vec();
             if frames.len() < 2 {
