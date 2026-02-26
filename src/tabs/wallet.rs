@@ -58,6 +58,17 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
     let method = &app.wallet.methods[app.wallet.selected];
     let mut lines: Vec<Line> = Vec::new();
 
+    if !app.wallet.wallet_name.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Wallet: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                &app.wallet.wallet_name,
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(""));
+    }
+
     lines.push(Line::from(Span::styled(
         &method.name,
         Style::default()
