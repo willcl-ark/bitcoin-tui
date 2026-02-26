@@ -365,9 +365,7 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
                 continue;
             }
             let hash_bytes = &frames[1];
-            let mut reversed = hash_bytes.to_vec();
-            reversed.reverse();
-            let hash = reversed
+            let hash = hash_bytes
                 .iter()
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
