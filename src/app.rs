@@ -374,9 +374,6 @@ impl App {
                 if self.zmq.entries.len() > MAX_ENTRIES {
                     self.zmq.entries.pop_front();
                 }
-                if self.zmq.auto_scroll {
-                    self.zmq.scroll = self.zmq.entries.len().saturating_sub(1) as u16;
-                }
             }
             Event::ZmqError(err) => {
                 self.zmq.error = Some(err);

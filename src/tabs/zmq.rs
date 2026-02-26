@@ -77,8 +77,12 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         .title(format!("ZMQ ({})", zmq.entries.len()))
         .border_style(Style::default().fg(Color::Cyan));
 
-    frame.render_widget(
-        Paragraph::new(lines).block(block).scroll((zmq.scroll, 0)),
-        area,
-    );
+    let viewport_height = area.height.saturating_sub(2) as usize;
+    let scroll = if zmq.auto_scroll {
+        zmq.entries.len().saturating_sub(viewport_height) as u16
+    } else {
+        zmq.scroll
+    };
+
+    frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
 }
