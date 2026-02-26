@@ -259,6 +259,7 @@ pub struct App {
     pub refreshing: bool,
 
     pub transactions: TransactionsTab,
+    pub transactions_return_target: Option<(Tab, Focus)>,
     pub zmq: ZmqTab,
     pub wallet: WalletTab,
     pub rpc: MethodBrowser,
@@ -282,6 +283,7 @@ impl Default for App {
             last_update: None,
             refreshing: false,
             transactions: TransactionsTab::default(),
+            transactions_return_target: None,
             zmq: ZmqTab::default(),
             wallet: WalletTab {
                 browser: MethodBrowser::new(load_wallet_methods()),
@@ -448,6 +450,7 @@ impl App {
     fn enter_tab(&mut self, tab: Tab) {
         self.tab = tab;
         self.focus = Focus::Content;
+        self.transactions_return_target = None;
         if tab == Tab::Transactions {
             self.input_mode = InputMode::TxSearch;
             self.transactions.search_input.clear();
@@ -624,7 +627,14 @@ impl App {
         use crossterm::event::{KeyCode, KeyModifiers};
 
         match key.code {
-            KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Esc => {
+                if let Some((tab, focus)) = self.transactions_return_target.take() {
+                    self.tab = tab;
+                    self.focus = focus;
+                } else {
+                    self.focus = Focus::TabBar;
+                }
+            }
             KeyCode::Char('/') => {
                 self.input_mode = InputMode::TxSearch;
                 self.transactions.search_input.clear();
@@ -685,6 +695,7 @@ impl App {
                     self.transactions.result = None;
                     self.transactions.error = None;
                     self.transactions.result_scroll = 0;
+                    self.transactions_return_target = Some((Tab::Zmq, Focus::Content));
                     self.tab = Tab::Transactions;
                     self.focus = Focus::Content;
                     self.input_mode = InputMode::Normal;
