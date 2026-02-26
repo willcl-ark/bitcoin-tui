@@ -107,9 +107,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     if args.debug {
+        use tracing_subscriber::EnvFilter;
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
             .with_target(false)
+            .with_env_filter(
+                EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| EnvFilter::new("bitcoin_tui=debug")),
+            )
             .init();
     }
 
@@ -325,21 +330,22 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
 
     tokio::spawn(async move {
         let mut socket = SubSocket::new();
+        // Subscribe to all topics and filter in-process so topic prefix mismatches don't
+        // silently suppress notifications.
+        if let Err(e) = socket.subscribe("").await {
+            tracing::error!(error = %e, "zmq subscribe failed");
+            let _ = tx.send(Event::ZmqError(format!("subscribe all: {}", e)));
+            return;
+        }
+        tracing::debug!("zmq subscribed to all topics");
         tracing::info!(addr, "zmq connecting");
         if let Err(e) = socket.connect(&addr).await {
             tracing::error!(addr, error = %e, "zmq connect failed");
             let _ = tx.send(Event::ZmqError(format!("connect {}: {}", addr, e)));
             return;
         }
-        for topic in ["hashtx", "hashblock"] {
-            if let Err(e) = socket.subscribe(topic).await {
-                tracing::error!(topic, error = %e, "zmq subscribe failed");
-                let _ = tx.send(Event::ZmqError(format!("subscribe {}: {}", topic, e)));
-                return;
-            }
-            tracing::debug!(topic, "zmq subscribed");
-        }
 
+        tracing::debug!("zmq waiting for messages");
         loop {
             let msg: ZmqMessage = match socket.recv().await {
                 Ok(msg) => msg,
@@ -354,7 +360,10 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
                 tracing::warn!(frames = frames.len(), "zmq: skipping message with unexpected frame count");
                 continue;
             }
-            let topic = String::from_utf8_lossy(&frames[0]).to_string();
+            let topic = String::from_utf8_lossy(&frames[0]).trim_end_matches('\0').to_string();
+            if topic != "hashtx" && topic != "hashblock" {
+                continue;
+            }
             let hash_bytes = &frames[1];
             let mut reversed = hash_bytes.to_vec();
             reversed.reverse();
@@ -363,7 +372,7 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
 
-            tracing::trace!(topic, hash, "zmq recv");
+            tracing::debug!(topic, hash, "zmq recv");
 
             if tx
                 .send(Event::ZmqMessage(Box::new(ZmqEntry { topic, hash })))
