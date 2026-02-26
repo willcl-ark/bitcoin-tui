@@ -302,7 +302,7 @@ impl App {
             InputMode::Normal => {
                 if self.tab == Tab::Wallet {
                     match key.code {
-                        KeyCode::Char('j') | KeyCode::Down => {
+                        KeyCode::Char('j') => {
                             let len = self.wallet.methods.len();
                             if len > 0 {
                                 self.wallet.selected = (self.wallet.selected + 1) % len;
@@ -313,7 +313,7 @@ impl App {
                                 self.wallet.result_scroll = 0;
                             }
                         }
-                        KeyCode::Char('k') | KeyCode::Up => {
+                        KeyCode::Char('k') => {
                             let len = self.wallet.methods.len();
                             if len > 0 {
                                 self.wallet.selected = (self.wallet.selected + len - 1) % len;
@@ -323,6 +323,14 @@ impl App {
                                 self.wallet.arg_input.clear();
                                 self.wallet.result_scroll = 0;
                             }
+                        }
+                        KeyCode::Down => {
+                            self.wallet.result_scroll =
+                                self.wallet.result_scroll.saturating_add(1);
+                        }
+                        KeyCode::Up => {
+                            self.wallet.result_scroll =
+                                self.wallet.result_scroll.saturating_sub(1);
                         }
                         KeyCode::Enter => {
                             let method = &self.wallet.methods[self.wallet.selected];

@@ -83,6 +83,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
         match app.input_mode {
             InputMode::Normal if app.tab == Tab::Wallet => vec![
                 Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                Span::raw(" methods  "),
+                Span::styled("↑/↓", Style::default().fg(Color::Yellow)),
                 Span::raw(" scroll  "),
                 Span::styled("Enter", Style::default().fg(Color::Yellow)),
                 Span::raw(" call  "),
