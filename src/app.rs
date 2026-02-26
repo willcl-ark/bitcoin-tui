@@ -412,6 +412,13 @@ impl App {
                     KeyCode::Left | KeyCode::Char('h') => self.tab = self.tab.prev(),
                     KeyCode::Enter => self.focus = Focus::Content,
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+                    KeyCode::Char('d') => self.tab = Tab::Dashboard,
+                    KeyCode::Char('m') => self.tab = Tab::Mempool,
+                    KeyCode::Char('n') => self.tab = Tab::Network,
+                    KeyCode::Char('p') => self.tab = Tab::Peers,
+                    KeyCode::Char('r') => self.tab = Tab::Rpc,
+                    KeyCode::Char('w') => self.tab = Tab::Wallet,
+                    KeyCode::Char('t') => self.tab = Tab::Transactions,
                     _ => {}
                 },
                 Focus::Content => match self.tab {
