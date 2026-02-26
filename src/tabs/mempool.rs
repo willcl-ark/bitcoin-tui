@@ -78,9 +78,19 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
     }
 
     const MAX_WEIGHT: f64 = 4_000_000.0;
+    const BAR_WIDTH: u16 = 10;
+    const BAR_GAP: u16 = 2;
+    let inner = block.inner(area);
+    let per_bar = BAR_WIDTH + BAR_GAP;
+    let bars_fit = if per_bar > 0 {
+        ((inner.width + BAR_GAP) / per_bar).max(1) as usize
+    } else {
+        1
+    };
+    let start = app.recent_blocks.len().saturating_sub(bars_fit);
+    let visible_blocks = &app.recent_blocks[start..];
 
-    let bars: Vec<Bar> = app
-        .recent_blocks
+    let bars: Vec<Bar> = visible_blocks
         .iter()
         .map(|b| {
             let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0) as u64;
@@ -103,8 +113,8 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
     let chart = BarChart::default()
         .block(block)
         .data(BarGroup::default().bars(&bars))
-        .bar_width(10)
-        .bar_gap(2);
+        .bar_width(BAR_WIDTH)
+        .bar_gap(BAR_GAP);
 
     frame.render_widget(chart, area);
 }

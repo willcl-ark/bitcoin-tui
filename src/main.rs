@@ -294,6 +294,7 @@ async fn run(
 
 fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval_secs: u64) {
     tokio::spawn(async move {
+        const RECENT_BLOCK_HISTORY: u64 = 72;
         let mut last_tip: Option<String> = None;
         loop {
             tracing::debug!("rpc poll starting");
@@ -317,7 +318,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                     last_tip = Some(info.bestblockhash.clone());
                     let height = info.blocks;
                     let mut blocks = Vec::new();
-                    for h in height.saturating_sub(5)..=height {
+                    for h in height.saturating_sub(RECENT_BLOCK_HISTORY - 1)..=height {
                         if let Ok(stats) = rpc.get_block_stats(h).await {
                             blocks.push(stats);
                         }

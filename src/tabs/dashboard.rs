@@ -119,7 +119,8 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
         ),
     ])];
 
-    for b in app.recent_blocks.iter().rev() {
+    let max_rows = area.height.saturating_sub(3) as usize;
+    for b in app.recent_blocks.iter().rev().take(max_rows) {
         lines.push(Line::from(format!(
             "{:<10} {:>8} {:>10} {:>8} {}",
             b.height,
