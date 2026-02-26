@@ -90,7 +90,8 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | Key | Action |
 |-----|--------|
 | `h` / `l` / `←` / `→` | Switch tab |
-| `d/m/n/p/r/w/t/z` | Jump to tab by first letter |
+| `d/m/n` | Select Dashboard/Mempool/Network tab |
+| `p/b/r/w/t/z` | Enter Peers/PSBT/RPC/Wallet/Transactions/ZMQ content |
 | `Enter` | Enter tab content (Transactions: opens search) |
 | `q` / `Esc` | Quit |
 
@@ -104,8 +105,10 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 
 | Key | Action |
 |-----|--------|
+| `j` / `k` / `↑` / `↓` | Move selection |
+| `Enter` | Show selected peer's full `getpeerinfo` JSON |
 | `v` | Toggle peer identity column between address and user agent |
-| `Esc` | Return to tab bar |
+| `Esc` | Close peer details popup, or return to tab bar |
 
 #### Transactions tab
 

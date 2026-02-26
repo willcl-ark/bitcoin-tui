@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use serde::Deserialize;
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(untagged)]
@@ -110,7 +113,7 @@ pub struct MiningInfo {
     pub warnings: Warnings,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 pub struct PeerInfo {
     pub id: i64,
     pub addr: String,
@@ -136,6 +139,8 @@ pub struct PeerInfo {
     pub connection_type: String,
     #[serde(default)]
     pub transport_protocol_type: String,
+    #[serde(flatten)]
+    pub extra: HashMap<String, Value>,
 }
 
 #[derive(Deserialize, Clone, Default)]

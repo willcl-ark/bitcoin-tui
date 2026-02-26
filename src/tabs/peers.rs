@@ -1,8 +1,8 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState},
 };
 
 use crate::app::App;
@@ -110,9 +110,14 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
     let table = Table::new(rows, widths)
         .header(header)
         .block(block)
-        .column_spacing(1);
+        .column_spacing(1)
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    frame.render_widget(table, area);
+    let mut state = TableState::default();
+    state.select(Some(app.peers_selected));
+    frame.render_stateful_widget(table, area, &mut state);
+
+    render_peer_popup(app, frame, area);
 }
 
 fn abbreviate_conn_type(ct: &str) -> String {
@@ -125,4 +130,31 @@ fn abbreviate_conn_type(ct: &str) -> String {
         "addr-fetch" => "addr".into(),
         other => other.into(),
     }
+}
+
+fn render_peer_popup(app: &App, frame: &mut Frame, area: Rect) {
+    let Some(peer_json) = &app.peers_popup else {
+        return;
+    };
+
+    let popup = Layout::vertical([Constraint::Length(area.height.saturating_sub(6))])
+        .flex(Flex::Center)
+        .split(area);
+    let popup = Layout::horizontal([Constraint::Length(area.width.saturating_sub(8))])
+        .flex(Flex::Center)
+        .split(popup[0])[0];
+
+    frame.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Peer Details (Esc to close)")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    frame.render_widget(
+        Paragraph::new(peer_json.clone())
+            .block(block)
+            .scroll((app.peers_popup_scroll, 0)),
+        popup,
+    );
 }

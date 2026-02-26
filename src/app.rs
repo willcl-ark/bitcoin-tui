@@ -335,6 +335,9 @@ pub struct App {
     pub mining: Option<MiningInfo>,
     pub peers: Option<Vec<PeerInfo>>,
     pub peers_show_user_agent: bool,
+    pub peers_selected: usize,
+    pub peers_popup: Option<String>,
+    pub peers_popup_scroll: u16,
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
 
@@ -363,6 +366,9 @@ impl Default for App {
             mining: None,
             peers: None,
             peers_show_user_agent: false,
+            peers_selected: 0,
+            peers_popup: None,
+            peers_popup_scroll: 0,
             recent_blocks: Vec::new(),
             last_tip: None,
             rpc_error: None,
@@ -557,7 +563,18 @@ impl App {
             _ => {}
         }
         match result.peers {
-            Ok(info) => self.peers = Some(info),
+            Ok(info) => {
+                self.peers = Some(info);
+                if let Some(peers) = &self.peers {
+                    if peers.is_empty() {
+                        self.peers_selected = 0;
+                        self.peers_popup = None;
+                        self.peers_popup_scroll = 0;
+                    } else {
+                        self.peers_selected = self.peers_selected.min(peers.len() - 1);
+                    }
+                }
+            }
             Err(e) if !had_error => {
                 self.rpc_error = Some(e);
             }
@@ -593,7 +610,7 @@ impl App {
                     KeyCode::Char('d') => self.tab = Tab::Dashboard,
                     KeyCode::Char('m') => self.tab = Tab::Mempool,
                     KeyCode::Char('n') => self.tab = Tab::Network,
-                    KeyCode::Char('p') => self.tab = Tab::Peers,
+                    KeyCode::Char('p') => self.enter_tab(Tab::Peers),
                     KeyCode::Char('b') => self.enter_tab(Tab::Psbt),
                     KeyCode::Char('r') => self.enter_tab(Tab::Rpc),
                     KeyCode::Char('w') => self.enter_tab(Tab::Wallet),
@@ -606,15 +623,7 @@ impl App {
                     Tab::Psbt => self.handle_psbt_content(key),
                     Tab::Transactions => self.handle_transactions_content(key),
                     Tab::Zmq => self.handle_zmq_content(key),
-                    Tab::Peers => match key.code {
-                        KeyCode::Char('v') => {
-                            self.peers_show_user_agent = !self.peers_show_user_agent;
-                        }
-                        KeyCode::Esc => {
-                            self.focus = Focus::TabBar;
-                        }
-                        _ => {}
-                    },
+                    Tab::Peers => self.handle_peers_content(key),
                     _ => {
                         if key.code == KeyCode::Esc {
                             self.focus = Focus::TabBar;
@@ -1020,6 +1029,64 @@ impl App {
                     self.zmq.block_popup_error = None;
                     self.zmq.block_popup_scroll = 0;
                 }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_peers_content(&mut self, key: KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers};
+
+        if self.peers_popup.is_some() {
+            match key.code {
+                KeyCode::Esc => {
+                    self.peers_popup = None;
+                    self.peers_popup_scroll = 0;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.peers_popup_scroll = self.peers_popup_scroll.saturating_add(1);
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.peers_popup_scroll = self.peers_popup_scroll.saturating_sub(1);
+                }
+                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.peers_popup_scroll = self.peers_popup_scroll.saturating_add(20);
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.peers_popup_scroll = self.peers_popup_scroll.saturating_sub(20);
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        let len = self.peers.as_ref().map_or(0, Vec::len);
+        let max = len.saturating_sub(1);
+
+        match key.code {
+            KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Char('v') => {
+                self.peers_show_user_agent = !self.peers_show_user_agent;
+            }
+            KeyCode::Down | KeyCode::Char('j') if len > 0 => {
+                self.peers_selected = (self.peers_selected + 1).min(max);
+            }
+            KeyCode::Up | KeyCode::Char('k') if len > 0 => {
+                self.peers_selected = self.peers_selected.saturating_sub(1);
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) && len > 0 => {
+                self.peers_selected = (self.peers_selected + 20).min(max);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) && len > 0 => {
+                self.peers_selected = self.peers_selected.saturating_sub(20);
+            }
+            KeyCode::Enter if len > 0 => {
+                self.peers_popup = self
+                    .peers
+                    .as_ref()
+                    .and_then(|peers| peers.get(self.peers_selected))
+                    .and_then(|peer| serde_json::to_string_pretty(peer).ok());
+                self.peers_popup_scroll = 0;
             }
             _ => {}
         }
