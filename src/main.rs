@@ -57,6 +57,9 @@ struct Args {
 
     #[arg(long)]
     zmqport: Option<u16>,
+
+    #[arg(long)]
+    debug: bool,
 }
 
 impl Args {
@@ -103,17 +106,35 @@ impl Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let rpc = Arc::new(RpcClient::new(
-        &args.host,
-        args.resolve_port(),
-        args.cookie_path(),
-        args.rpcuser.as_deref(),
-        args.rpcpassword.as_deref(),
-    ));
+    if args.debug {
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .with_target(false)
+            .init();
+    }
 
+    let rpc_port = args.resolve_port();
+    let rpc_url = format!("http://{}:{}", args.host, rpc_port);
+    let cookie_path = args.cookie_path();
     let zmq_addr = args
         .zmqport
         .map(|port| format!("tcp://{}:{}", args.zmqhost, port));
+
+    tracing::info!(
+        rpc_url,
+        cookie_path = ?cookie_path,
+        zmq_addr = ?zmq_addr,
+        poll_interval = args.interval,
+        "starting"
+    );
+
+    let rpc = Arc::new(RpcClient::new(
+        &args.host,
+        rpc_port,
+        cookie_path,
+        args.rpcuser.as_deref(),
+        args.rpcpassword.as_deref(),
+    ));
 
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, rpc, args.interval, zmq_addr).await;
@@ -226,6 +247,9 @@ async fn run(
                 }
             }
             event = rx.recv() => {
+                if let Some(event) = &event {
+                    tracing::trace!(event = ?std::mem::discriminant(event), "channel recv");
+                }
                 if let Some(event) = event {
                     app.update(event);
                 }
@@ -244,6 +268,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
     tokio::spawn(async move {
         let mut last_tip: Option<String> = None;
         loop {
+            tracing::debug!("rpc poll starting");
             let (blockchain, network, mempool, mining, peers) = tokio::join!(
                 rpc.get_blockchain_info(),
                 rpc.get_network_info(),
@@ -251,6 +276,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 rpc.get_mining_info(),
                 rpc.get_peer_info(),
             );
+            tracing::debug!("rpc poll complete");
 
             let tip_changed = match (&blockchain, &last_tip) {
                 (Ok(info), Some(old_tip)) => info.bestblockhash != *old_tip,
@@ -299,29 +325,33 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
 
     tokio::spawn(async move {
         let mut socket = SubSocket::new();
+        tracing::info!(addr, "zmq connecting");
         if let Err(e) = socket.connect(&addr).await {
+            tracing::error!(addr, error = %e, "zmq connect failed");
             let _ = tx.send(Event::ZmqError(format!("connect {}: {}", addr, e)));
             return;
         }
-        if let Err(e) = socket.subscribe("hashtx").await {
-            let _ = tx.send(Event::ZmqError(format!("subscribe hashtx: {}", e)));
-            return;
-        }
-        if let Err(e) = socket.subscribe("hashblock").await {
-            let _ = tx.send(Event::ZmqError(format!("subscribe hashblock: {}", e)));
-            return;
+        for topic in ["hashtx", "hashblock"] {
+            if let Err(e) = socket.subscribe(topic).await {
+                tracing::error!(topic, error = %e, "zmq subscribe failed");
+                let _ = tx.send(Event::ZmqError(format!("subscribe {}: {}", topic, e)));
+                return;
+            }
+            tracing::debug!(topic, "zmq subscribed");
         }
 
         loop {
             let msg: ZmqMessage = match socket.recv().await {
                 Ok(msg) => msg,
                 Err(e) => {
+                    tracing::error!(error = %e, "zmq recv failed");
                     let _ = tx.send(Event::ZmqError(format!("recv: {}", e)));
                     break;
                 }
             };
             let frames: Vec<_> = msg.into_vec();
             if frames.len() < 2 {
+                tracing::warn!(frames = frames.len(), "zmq: skipping message with unexpected frame count");
                 continue;
             }
             let topic = String::from_utf8_lossy(&frames[0]).to_string();
@@ -332,6 +362,8 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
                 .iter()
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
+
+            tracing::trace!(topic, hash, "zmq recv");
 
             if tx
                 .send(Event::ZmqMessage(Box::new(ZmqEntry { topic, hash })))
@@ -353,17 +385,21 @@ fn parse_args(input: &str) -> Result<serde_json::Value, String> {
 }
 
 async fn search_tx(rpc: &RpcClient, txid: &str) -> Result<SearchResult, String> {
+    tracing::debug!(txid, "searching for tx");
     if let Ok(entry) = rpc.get_mempool_entry(txid).await {
+        tracing::debug!(txid, "found in mempool");
         return Ok(SearchResult::Mempool {
             txid: txid.to_string(),
             entry,
         });
     }
     if let Ok(tx) = rpc.get_raw_transaction(txid).await {
+        tracing::debug!(txid, "found confirmed");
         return Ok(SearchResult::Confirmed {
             txid: txid.to_string(),
             tx,
         });
     }
+    tracing::debug!(txid, "tx not found");
     Err("Transaction not found".to_string())
 }

@@ -59,6 +59,7 @@ impl RpcClient {
     }
 
     async fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T, String> {
+        tracing::debug!(method, %params, "rpc request");
         let auth = self.auth_header().await?;
         let body = json!({
             "jsonrpc": "1.0",
@@ -75,7 +76,10 @@ impl RpcClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| format!("RPC connection failed: {}", e))?;
+            .map_err(|e| {
+                tracing::error!(method, error = %e, "rpc connection failed");
+                format!("RPC connection failed: {}", e)
+            })?;
 
         let status = resp.status();
         let text = resp
@@ -84,6 +88,7 @@ impl RpcClient {
             .map_err(|e| format!("Failed to read response: {}", e))?;
 
         if !status.is_success() {
+            tracing::error!(method, %status, "rpc error");
             return Err(format!("RPC error ({}): {}", status, text));
         }
 
@@ -93,9 +98,11 @@ impl RpcClient {
         if let Some(err) = parsed.get("error")
             && !err.is_null()
         {
+            tracing::error!(method, %err, "rpc error response");
             return Err(format!("RPC error: {}", err));
         }
 
+        tracing::debug!(method, "rpc response ok");
         serde_json::from_value(parsed["result"].clone())
             .map_err(|e| format!("Failed to parse {}: {}", method, e))
     }
@@ -106,6 +113,7 @@ impl RpcClient {
         params: Value,
         wallet: Option<&str>,
     ) -> Result<Value, String> {
+        tracing::debug!(method, %params, wallet, "rpc request");
         let auth = self.auth_header().await?;
         let url = match wallet {
             Some(name) if !name.is_empty() => format!("{}/wallet/{}", self.url, name),
@@ -126,7 +134,10 @@ impl RpcClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| format!("RPC connection failed: {}", e))?;
+            .map_err(|e| {
+                tracing::error!(method, error = %e, "rpc connection failed");
+                format!("RPC connection failed: {}", e)
+            })?;
 
         let status = resp.status();
         let text = resp
@@ -135,6 +146,7 @@ impl RpcClient {
             .map_err(|e| format!("Failed to read response: {}", e))?;
 
         if !status.is_success() {
+            tracing::error!(method, %status, "rpc error");
             return Err(format!("RPC error ({}): {}", status, text));
         }
 
@@ -144,9 +156,11 @@ impl RpcClient {
         if let Some(err) = parsed.get("error")
             && !err.is_null()
         {
+            tracing::error!(method, %err, "rpc error response");
             return Err(format!("RPC error: {}", err));
         }
 
+        tracing::debug!(method, "rpc response ok");
         Ok(parsed["result"].clone())
     }
 
