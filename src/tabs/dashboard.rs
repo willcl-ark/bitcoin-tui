@@ -26,7 +26,8 @@ fn render_blockchain(app: &App, frame: &mut Frame, area: Rect) {
     let block = Block::default().borders(Borders::ALL).title("Blockchain");
 
     let Some(info) = &app.blockchain else {
-        frame.render_widget(Paragraph::new("Loading...").block(block), area);
+        let msg = app.rpc_error.as_deref().unwrap_or("Connecting...");
+        frame.render_widget(Paragraph::new(msg.to_string()).block(block), area);
         return;
     };
 
@@ -58,6 +59,20 @@ fn render_blockchain(app: &App, frame: &mut Frame, area: Rect) {
         kv("Chain", info.chain.clone(), chain_color),
         kv("Blocks", fmt_number(info.blocks), Color::White),
         kv("Headers", fmt_number(info.headers), Color::White),
+        kv(
+            "Best Block",
+            fmt_abbreviated_hash(&info.bestblockhash),
+            Color::White,
+        ),
+        kv(
+            "Block Time",
+            if info.time > 0 {
+                fmt_relative_time(info.time)
+            } else {
+                "—".into()
+            },
+            Color::White,
+        ),
         kv("Difficulty", fmt_difficulty(info.difficulty), Color::White),
         kv("Hash Rate", hashrate, Color::White),
         kv(
@@ -95,7 +110,7 @@ fn render_network(app: &App, frame: &mut Frame, area: Rect) {
     let block = Block::default().borders(Borders::ALL).title("Network");
 
     let Some(info) = &app.network else {
-        frame.render_widget(Paragraph::new("Loading...").block(block), area);
+        frame.render_widget(Paragraph::new("Connecting...").block(block), area);
         return;
     };
 
@@ -132,7 +147,7 @@ fn render_mempool(app: &App, frame: &mut Frame, area: Rect) {
     let block = Block::default().borders(Borders::ALL).title("Mempool");
 
     let Some(info) = &app.mempool else {
-        frame.render_widget(Paragraph::new("Loading...").block(block), area);
+        frame.render_widget(Paragraph::new("Connecting...").block(block), area);
         return;
     };
 
