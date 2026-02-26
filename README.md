@@ -108,6 +108,7 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | `j` / `k` / `↑` / `↓` | Move selection |
 | `Enter` | Show selected peer's full `getpeerinfo` JSON |
 | `:` | Open peer query prompt |
+| `c` | Clear active peer query |
 | `v` | Toggle peer identity column between address and user agent |
 | `Esc` | Close peer details popup, or return to tab bar |
 

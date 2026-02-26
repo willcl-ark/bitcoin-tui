@@ -1119,6 +1119,12 @@ impl App {
             KeyCode::Char('v') => {
                 self.peers_show_user_agent = !self.peers_show_user_agent;
             }
+            KeyCode::Char('c') => {
+                self.peers_query = PeerQuery::default();
+                self.peers_query_error = None;
+                self.clear_peers_query_completion();
+                self.refresh_peers_view();
+            }
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
                 self.peers_selected = (self.peers_selected + 1).min(max);
             }

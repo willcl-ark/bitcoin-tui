@@ -177,6 +177,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::raw(" details  "),
                 Span::styled(":", hl),
                 Span::raw(" query  "),
+                Span::styled("c", hl),
+                Span::raw(" clear  "),
                 Span::styled("v", hl),
                 Span::raw(" addr/agent  "),
                 Span::styled("Esc", hl),
