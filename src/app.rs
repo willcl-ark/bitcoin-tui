@@ -402,6 +402,15 @@ impl App {
         let _ = had_error;
     }
 
+    fn enter_tab(&mut self, tab: Tab) {
+        self.tab = tab;
+        self.focus = Focus::Content;
+        if tab == Tab::Transactions {
+            self.input_mode = InputMode::TxSearch;
+            self.transactions.search_input.clear();
+        }
+    }
+
     fn handle_key(&mut self, key: KeyEvent) {
         use crossterm::event::{KeyCode, KeyModifiers};
 
@@ -410,21 +419,15 @@ impl App {
                 Focus::TabBar => match key.code {
                     KeyCode::Right | KeyCode::Char('l') => self.tab = self.tab.next(),
                     KeyCode::Left | KeyCode::Char('h') => self.tab = self.tab.prev(),
-                    KeyCode::Enter => {
-                        self.focus = Focus::Content;
-                        if self.tab == Tab::Transactions {
-                            self.input_mode = InputMode::TxSearch;
-                            self.transactions.search_input.clear();
-                        }
-                    }
+                    KeyCode::Enter => self.enter_tab(self.tab),
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
                     KeyCode::Char('d') => self.tab = Tab::Dashboard,
                     KeyCode::Char('m') => self.tab = Tab::Mempool,
                     KeyCode::Char('n') => self.tab = Tab::Network,
                     KeyCode::Char('p') => self.tab = Tab::Peers,
-                    KeyCode::Char('r') => self.tab = Tab::Rpc,
-                    KeyCode::Char('w') => self.tab = Tab::Wallet,
-                    KeyCode::Char('t') => self.tab = Tab::Transactions,
+                    KeyCode::Char('r') => self.enter_tab(Tab::Rpc),
+                    KeyCode::Char('w') => self.enter_tab(Tab::Wallet),
+                    KeyCode::Char('t') => self.enter_tab(Tab::Transactions),
                     _ => {}
                 },
                 Focus::Content => match self.tab {
