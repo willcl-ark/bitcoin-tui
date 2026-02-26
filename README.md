@@ -1,17 +1,28 @@
 # bitcoin-tui
 
-Terminal UI for monitoring a running Bitcoin Core node.
+Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 
 ![Dashboard](https://img.shields.io/badge/status-alpha-orange)
 
 ## Features
 
-- **Dashboard** — blockchain sync status, network overview, mempool stats with gauges
+### Tabs
+
+- **Dashboard** — blockchain sync progress, network overview, mempool summary with gauges
 - **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
 - **Network** — connection details, per-network reachability, local addresses
-- **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 status
-- **Wallet** — browse all 56 wallet RPC methods, view help text, type arguments, execute calls and view results
-- **Transaction search** — look up any txid in mempool or on-chain via `/`
+- **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
+- **Wallet** — browse all 56 wallet RPC methods with inline help, type arguments, execute calls, and view results
+
+### Transaction search
+
+Press `/` from any tab to search for a transaction by txid. Results show whether the transaction is in the mempool (with fee, size, ancestor/descendant info) or confirmed on-chain (with confirmation count, block age).
+
+### Wallet RPC explorer
+
+The Wallet tab lists every wallet RPC method from the Bitcoin Core API. Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input where you type positional JSON args (e.g. `"*", 6`).
+
+Press `w` to open the wallet selector, which queries `listwallets` from your node and lets you pick which wallet to target. The selected wallet name appears in the method list header and is used for all subsequent calls via the `/wallet/<name>` RPC endpoint.
 
 ## Requirements
 
@@ -22,6 +33,12 @@ Terminal UI for monitoring a running Bitcoin Core node.
 
 ```
 cargo install --path .
+```
+
+With Nix:
+
+```
+nix build
 ```
 
 Or run directly:
@@ -61,17 +78,41 @@ By default connects to `127.0.0.1:8332` using cookie auth from `~/.bitcoin/.cook
 
 ### Keybindings
 
+#### Global
+
 | Key | Action |
 |-----|--------|
 | `Tab` / `l` / `→` | Next tab |
 | `Shift+Tab` / `h` / `←` | Previous tab |
-| `/` | Search for a transaction |
-| `Enter` | Submit search / call wallet method |
-| `Esc` | Cancel search / close overlay / quit |
-| `j` / `k` | Scroll wallet method list |
-| `w` | Set wallet name (Wallet tab) |
-| `g` / `G` | Jump to first / last method |
+| `/` | Search for a transaction by txid |
+| `Esc` | Cancel input / close overlay / quit |
 | `q` | Quit |
+
+#### Transaction search
+
+| Key | Action |
+|-----|--------|
+| *type* | Enter txid |
+| `Enter` | Submit search |
+| `Esc` | Cancel |
+
+#### Wallet tab
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Scroll method list |
+| `g` / `G` | Jump to first / last method |
+| `Enter` | Call method (opens arg input if method has parameters) |
+| `w` | Open wallet selector |
+| `Esc` | Cancel arg input |
+
+#### Wallet selector popup
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Navigate wallet list |
+| `Enter` | Select wallet |
+| `Esc` | Cancel |
 
 ## Examples
 
