@@ -102,8 +102,6 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                     WalletPane::Methods => vec![
                         Span::styled("j/k", hl),
                         Span::raw(" methods  "),
-                        Span::styled("Enter", hl),
-                        Span::raw(" call  "),
                         Span::styled("/", hl),
                         Span::raw(" search  "),
                         Span::styled("w", hl),
@@ -115,6 +113,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                     ],
                     WalletPane::Detail => {
                         let mut spans = vec![
+                            Span::styled("Enter", hl),
+                            Span::raw(" call  "),
                             Span::styled("↑/↓", hl),
                             Span::raw(" scroll  "),
                             Span::styled("/", hl),

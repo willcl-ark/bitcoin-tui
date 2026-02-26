@@ -101,7 +101,6 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 |-----|--------|
 | `j` / `k` / `↑` / `↓` | Navigate method list |
 | `g` / `G` | Jump to first / last method |
-| `Enter` | Call method (opens arg input if method has parameters) |
 | `/` | Search/filter methods |
 | `w` | Open wallet selector |
 | `Tab` | Switch to detail pane |
@@ -111,6 +110,7 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 
 | Key | Action |
 |-----|--------|
+| `Enter` | Call method (opens arg input if method has parameters) |
 | `↑` / `↓` | Scroll |
 | `/` | Search result text |
 | `n` / `N` | Next / previous match |

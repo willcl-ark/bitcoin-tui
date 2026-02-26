@@ -527,15 +527,6 @@ impl App {
                     self.wallet.detail_matches.clear();
                 }
             }
-            KeyCode::Enter => {
-                let method = &self.wallet.methods[self.wallet.selected];
-                if method.params.is_empty() {
-                    self.wallet.calling = true;
-                } else {
-                    self.input_mode = InputMode::WalletArg;
-                    self.wallet.editing_args = true;
-                }
-            }
             KeyCode::Char('w') => {
                 self.wallet.fetching_wallets = true;
             }
@@ -560,6 +551,15 @@ impl App {
         use crossterm::event::KeyCode;
 
         match key.code {
+            KeyCode::Enter => {
+                let method = &self.wallet.methods[self.wallet.selected];
+                if method.params.is_empty() {
+                    self.wallet.calling = true;
+                } else {
+                    self.input_mode = InputMode::WalletArg;
+                    self.wallet.editing_args = true;
+                }
+            }
             KeyCode::Down => {
                 self.wallet.result_scroll = self.wallet.result_scroll.saturating_add(1);
             }
