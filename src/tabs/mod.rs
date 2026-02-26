@@ -4,4 +4,5 @@ pub mod method_browser;
 pub mod network;
 pub mod peers;
 pub mod rpc;
+pub mod transactions;
 pub mod wallet;

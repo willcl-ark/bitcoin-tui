@@ -13,16 +13,18 @@ pub enum Tab {
     Mempool,
     Network,
     Peers,
+    Transactions,
     Rpc,
     Wallet,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 6] = [
+    pub const ALL: [Tab; 7] = [
         Tab::Dashboard,
         Tab::Mempool,
         Tab::Network,
         Tab::Peers,
+        Tab::Transactions,
         Tab::Rpc,
         Tab::Wallet,
     ];
@@ -33,6 +35,7 @@ impl Tab {
             Tab::Mempool => "Mempool",
             Tab::Network => "Network",
             Tab::Peers => "Peers",
+            Tab::Transactions => "Transactions",
             Tab::Rpc => "RPC",
             Tab::Wallet => "Wallet",
         }
@@ -43,7 +46,8 @@ impl Tab {
             Tab::Dashboard => Tab::Mempool,
             Tab::Mempool => Tab::Network,
             Tab::Network => Tab::Peers,
-            Tab::Peers => Tab::Rpc,
+            Tab::Peers => Tab::Transactions,
+            Tab::Transactions => Tab::Rpc,
             Tab::Rpc => Tab::Wallet,
             Tab::Wallet => Tab::Dashboard,
         }
@@ -55,7 +59,8 @@ impl Tab {
             Tab::Mempool => Tab::Dashboard,
             Tab::Network => Tab::Mempool,
             Tab::Peers => Tab::Network,
-            Tab::Rpc => Tab::Peers,
+            Tab::Transactions => Tab::Peers,
+            Tab::Rpc => Tab::Transactions,
             Tab::Wallet => Tab::Rpc,
         }
     }
@@ -72,7 +77,7 @@ pub enum Focus {
 pub enum InputMode {
     #[default]
     Normal,
-    Search,
+    TxSearch,
     ArgInput,
     WalletPicker,
     MethodSearch,
@@ -197,6 +202,15 @@ impl MethodBrowser {
     }
 }
 
+#[derive(Default)]
+pub struct TransactionsTab {
+    pub search_input: String,
+    pub result: Option<SearchResult>,
+    pub error: Option<String>,
+    pub searching: bool,
+    pub result_scroll: u16,
+}
+
 pub struct WalletTab {
     pub browser: MethodBrowser,
     pub wallet_name: String,
@@ -209,7 +223,6 @@ pub struct App {
     pub tab: Tab,
     pub focus: Focus,
     pub input_mode: InputMode,
-    pub search_input: String,
     pub should_quit: bool,
 
     pub blockchain: Option<BlockchainInfo>,
@@ -220,14 +233,11 @@ pub struct App {
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
 
-    pub search_result: Option<SearchResult>,
-    pub search_error: Option<String>,
-    pub searching: bool,
-
     pub rpc_error: Option<String>,
     pub last_update: Option<Instant>,
     pub refreshing: bool,
 
+    pub transactions: TransactionsTab,
     pub wallet: WalletTab,
     pub rpc: MethodBrowser,
 }
@@ -238,7 +248,6 @@ impl Default for App {
             tab: Tab::default(),
             focus: Focus::default(),
             input_mode: InputMode::default(),
-            search_input: String::new(),
             should_quit: false,
             blockchain: None,
             network: None,
@@ -247,12 +256,10 @@ impl Default for App {
             peers: None,
             recent_blocks: Vec::new(),
             last_tip: None,
-            search_result: None,
-            search_error: None,
-            searching: false,
             rpc_error: None,
             last_update: None,
             refreshing: false,
+            transactions: TransactionsTab::default(),
             wallet: WalletTab {
                 browser: MethodBrowser::new(load_wallet_methods()),
                 wallet_name: String::new(),
@@ -279,7 +286,20 @@ impl App {
             Event::Key(key) => self.handle_key(key),
             Event::Tick => {}
             Event::PollComplete(result) => self.handle_poll(*result),
-            Event::SearchComplete(result) => self.handle_search(*result),
+            Event::SearchComplete(result) => {
+                self.transactions.searching = false;
+                match *result {
+                    Ok(sr) => {
+                        self.transactions.error = None;
+                        self.transactions.result = Some(sr);
+                        self.transactions.result_scroll = 0;
+                    }
+                    Err(e) => {
+                        self.transactions.result = None;
+                        self.transactions.error = Some(e);
+                    }
+                }
+            }
             Event::WalletListComplete(result) => {
                 self.wallet.fetching_wallets = false;
                 match *result {
@@ -382,29 +402,8 @@ impl App {
         let _ = had_error;
     }
 
-    fn handle_search(&mut self, result: Result<SearchResult, String>) {
-        self.searching = false;
-        match result {
-            Ok(sr) => {
-                self.search_error = None;
-                self.search_result = Some(sr);
-            }
-            Err(e) => {
-                self.search_result = None;
-                self.search_error = Some(e);
-            }
-        }
-    }
-
     fn handle_key(&mut self, key: KeyEvent) {
         use crossterm::event::{KeyCode, KeyModifiers};
-
-        if (self.search_result.is_some() || self.search_error.is_some()) && key.code == KeyCode::Esc
-        {
-            self.search_result = None;
-            self.search_error = None;
-            return;
-        }
 
         match self.input_mode {
             InputMode::Normal => match self.focus {
@@ -413,14 +412,11 @@ impl App {
                     KeyCode::Left | KeyCode::Char('h') => self.tab = self.tab.prev(),
                     KeyCode::Enter => self.focus = Focus::Content,
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-                    KeyCode::Char('/') => {
-                        self.input_mode = InputMode::Search;
-                        self.search_input.clear();
-                    }
                     _ => {}
                 },
                 Focus::Content => match self.tab {
                     Tab::Wallet | Tab::Rpc => self.handle_browser_content(key),
+                    Tab::Transactions => self.handle_transactions_content(key),
                     _ => {
                         if key.code == KeyCode::Esc {
                             self.focus = Focus::TabBar;
@@ -428,23 +424,22 @@ impl App {
                     }
                 },
             },
-            InputMode::Search => match key.code {
+            InputMode::TxSearch => match key.code {
                 KeyCode::Esc => {
                     self.input_mode = InputMode::Normal;
-                    self.search_input.clear();
                 }
                 KeyCode::Enter => {
-                    if !self.search_input.is_empty() {
-                        self.searching = true;
+                    if !self.transactions.search_input.is_empty() {
+                        self.transactions.searching = true;
                         self.input_mode = InputMode::Normal;
                     }
                 }
                 KeyCode::Backspace => {
-                    self.search_input.pop();
+                    self.transactions.search_input.pop();
                 }
                 KeyCode::Char(c) => {
                     if !key.modifiers.contains(KeyModifiers::CONTROL) {
-                        self.search_input.push(c);
+                        self.transactions.search_input.push(c);
                     }
                 }
                 _ => {}
@@ -550,6 +545,33 @@ impl App {
                 }
                 _ => {}
             },
+        }
+    }
+
+    fn handle_transactions_content(&mut self, key: KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers};
+
+        match key.code {
+            KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Char('/') => {
+                self.input_mode = InputMode::TxSearch;
+                self.transactions.search_input.clear();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.transactions.result_scroll = self.transactions.result_scroll.saturating_add(1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.transactions.result_scroll = self.transactions.result_scroll.saturating_sub(1);
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.transactions.result_scroll =
+                    self.transactions.result_scroll.saturating_add(20);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.transactions.result_scroll =
+                    self.transactions.result_scroll.saturating_sub(20);
+            }
+            _ => {}
         }
     }
 

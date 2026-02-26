@@ -127,9 +127,9 @@ async fn run(
     loop {
         terminal.draw(|frame| ui::render(&app, frame))?;
 
-        if app.searching {
-            app.searching = false;
-            let txid = app.search_input.clone();
+        if app.transactions.searching {
+            app.transactions.searching = false;
+            let txid = app.transactions.search_input.clone();
             let rpc = rpc.clone();
             let tx = tx.clone();
             tokio::spawn(async move {

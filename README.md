@@ -12,12 +12,9 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
 - **Network** — connection details, per-network reachability, local addresses
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
+- **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
 - **RPC** — browse all non-wallet RPC methods (blockchain, mempool, mining, network, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse all 56 wallet RPC methods with inline help, type arguments, execute calls, and view results
-
-### Transaction search
-
-Press `/` from any tab to search for a transaction by txid. Results show whether the transaction is in the mempool (with fee, size, ancestor/descendant info) or confirmed on-chain (with confirmation count, block age).
 
 ### RPC explorer
 
@@ -91,13 +88,21 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 |-----|--------|
 | `h` / `l` / `←` / `→` | Switch tab |
 | `Enter` | Enter tab content |
-| `/` | Search for a transaction by txid |
 | `q` / `Esc` | Quit |
 
 #### Content mode
 
 | Key | Action |
 |-----|--------|
+| `Esc` | Return to tab bar |
+
+#### Transactions tab
+
+| Key | Action |
+|-----|--------|
+| `/` | Search for a transaction by txid |
+| `j` / `k` / `↑` / `↓` | Scroll results |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
 | `Esc` | Return to tab bar |
 
 #### RPC / Wallet — methods pane

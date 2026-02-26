@@ -1,13 +1,12 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Flex, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Tabs},
+    widgets::{Paragraph, Tabs},
 };
 
-use crate::app::{App, BrowserPane, Focus, InputMode, SearchResult, Tab};
-use crate::format::*;
+use crate::app::{App, BrowserPane, Focus, InputMode, Tab};
 
 pub fn render(app: &App, frame: &mut Frame) {
     let chunks = Layout::vertical([
@@ -20,16 +19,6 @@ pub fn render(app: &App, frame: &mut Frame) {
     render_tab_bar(app, frame, chunks[0]);
     render_content(app, frame, chunks[1]);
     render_footer(app, frame, chunks[2]);
-
-    if app.input_mode == InputMode::Search {
-        render_search_input(app, frame, frame.area());
-    } else if let Some(result) = &app.search_result {
-        render_search_overlay(result, frame, frame.area());
-    } else if let Some(err) = &app.search_error {
-        render_error_overlay(err, frame, frame.area());
-    } else if app.searching {
-        render_searching_overlay(frame, frame.area());
-    }
 }
 
 fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
@@ -58,6 +47,7 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
         Tab::Mempool => crate::tabs::mempool::render(app, frame, area),
         Tab::Network => crate::tabs::network::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
+        Tab::Transactions => crate::tabs::transactions::render(app, frame, area),
         Tab::Rpc => crate::tabs::rpc::render(app, frame, area),
         Tab::Wallet => crate::tabs::wallet::render(app, frame, area),
     }
@@ -66,108 +56,107 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
 fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
     let hl = Style::default().fg(Color::Yellow);
 
-    let left_spans = if app.search_result.is_some() || app.search_error.is_some() {
-        vec![
-            Span::styled("Esc", hl),
-            Span::raw(" dismiss  "),
-            Span::styled("q", hl),
-            Span::raw(" quit"),
-        ]
-    } else {
-        match app.input_mode {
-            InputMode::Normal => match app.focus {
-                Focus::TabBar => vec![
-                    Span::styled("h/l/←/→", hl),
-                    Span::raw(" switch tab  "),
-                    Span::styled("Enter", hl),
-                    Span::raw(" select  "),
-                    Span::styled("/", hl),
-                    Span::raw(" search  "),
-                    Span::styled("q", hl),
-                    Span::raw(" quit"),
-                ],
-                Focus::Content if app.tab == Tab::Wallet || app.tab == Tab::Rpc => {
-                    let browser = if app.tab == Tab::Wallet {
-                        &app.wallet.browser
-                    } else {
-                        &app.rpc
-                    };
-                    match browser.pane {
-                        BrowserPane::Methods => {
-                            let mut spans = vec![
-                                Span::styled("j/k", hl),
-                                Span::raw(" methods  "),
-                                Span::styled("/", hl),
-                                Span::raw(" search  "),
-                            ];
-                            if app.tab == Tab::Wallet {
-                                spans.push(Span::styled("w", hl));
-                                spans.push(Span::raw(" wallet  "));
-                            }
-                            spans.push(Span::styled("Tab", hl));
-                            spans.push(Span::raw(" pane  "));
-                            spans.push(Span::styled("Esc", hl));
-                            spans.push(Span::raw(" back"));
-                            spans
+    let left_spans = match app.input_mode {
+        InputMode::Normal => match app.focus {
+            Focus::TabBar => vec![
+                Span::styled("h/l/←/→", hl),
+                Span::raw(" switch tab  "),
+                Span::styled("Enter", hl),
+                Span::raw(" select  "),
+                Span::styled("q", hl),
+                Span::raw(" quit"),
+            ],
+            Focus::Content if app.tab == Tab::Wallet || app.tab == Tab::Rpc => {
+                let browser = if app.tab == Tab::Wallet {
+                    &app.wallet.browser
+                } else {
+                    &app.rpc
+                };
+                match browser.pane {
+                    BrowserPane::Methods => {
+                        let mut spans = vec![
+                            Span::styled("j/k", hl),
+                            Span::raw(" methods  "),
+                            Span::styled("/", hl),
+                            Span::raw(" search  "),
+                        ];
+                        if app.tab == Tab::Wallet {
+                            spans.push(Span::styled("w", hl));
+                            spans.push(Span::raw(" wallet  "));
                         }
-                        BrowserPane::Detail => {
-                            let mut spans = vec![
-                                Span::styled("Enter", hl),
-                                Span::raw(" call  "),
-                                Span::styled("j/k", hl),
-                                Span::raw(" scroll  "),
-                                Span::styled("C-u/d", hl),
-                                Span::raw(" page  "),
-                                Span::styled("/", hl),
-                                Span::raw(" search  "),
-                            ];
-                            if !browser.detail_matches.is_empty() {
-                                spans.push(Span::styled("n/N", hl));
-                                spans.push(Span::raw(" next/prev  "));
-                            }
-                            spans.push(Span::styled("Tab", hl));
-                            spans.push(Span::raw(" pane  "));
-                            spans.push(Span::styled("Esc", hl));
-                            spans.push(Span::raw(" back"));
-                            spans
+                        spans.push(Span::styled("Tab", hl));
+                        spans.push(Span::raw(" pane  "));
+                        spans.push(Span::styled("Esc", hl));
+                        spans.push(Span::raw(" back"));
+                        spans
+                    }
+                    BrowserPane::Detail => {
+                        let mut spans = vec![
+                            Span::styled("Enter", hl),
+                            Span::raw(" call  "),
+                            Span::styled("j/k", hl),
+                            Span::raw(" scroll  "),
+                            Span::styled("C-u/d", hl),
+                            Span::raw(" page  "),
+                            Span::styled("/", hl),
+                            Span::raw(" search  "),
+                        ];
+                        if !browser.detail_matches.is_empty() {
+                            spans.push(Span::styled("n/N", hl));
+                            spans.push(Span::raw(" next/prev  "));
                         }
+                        spans.push(Span::styled("Tab", hl));
+                        spans.push(Span::raw(" pane  "));
+                        spans.push(Span::styled("Esc", hl));
+                        spans.push(Span::raw(" back"));
+                        spans
                     }
                 }
-                Focus::Content => vec![Span::styled("Esc", hl), Span::raw(" back")],
-            },
-            InputMode::Search => vec![
-                Span::styled("Enter", hl),
+            }
+            Focus::Content if app.tab == Tab::Transactions => vec![
+                Span::styled("/", hl),
                 Span::raw(" search  "),
-                Span::styled("Esc", hl),
-                Span::raw(" cancel"),
-            ],
-            InputMode::ArgInput => vec![
-                Span::styled("Enter", hl),
-                Span::raw(" send  "),
-                Span::styled("Esc", hl),
-                Span::raw(" cancel"),
-            ],
-            InputMode::WalletPicker => vec![
                 Span::styled("j/k", hl),
-                Span::raw(" select  "),
-                Span::styled("Enter", hl),
-                Span::raw(" confirm  "),
+                Span::raw(" scroll  "),
+                Span::styled("C-u/d", hl),
+                Span::raw(" page  "),
                 Span::styled("Esc", hl),
-                Span::raw(" cancel"),
+                Span::raw(" back"),
             ],
-            InputMode::MethodSearch => vec![
-                Span::styled("Enter", hl),
-                Span::raw(" accept  "),
-                Span::styled("Esc", hl),
-                Span::raw(" cancel"),
-            ],
-            InputMode::DetailSearch => vec![
-                Span::styled("Enter", hl),
-                Span::raw(" search  "),
-                Span::styled("Esc", hl),
-                Span::raw(" cancel"),
-            ],
-        }
+            Focus::Content => vec![Span::styled("Esc", hl), Span::raw(" back")],
+        },
+        InputMode::TxSearch => vec![
+            Span::styled("Enter", hl),
+            Span::raw(" search  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
+        InputMode::ArgInput => vec![
+            Span::styled("Enter", hl),
+            Span::raw(" send  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
+        InputMode::WalletPicker => vec![
+            Span::styled("j/k", hl),
+            Span::raw(" select  "),
+            Span::styled("Enter", hl),
+            Span::raw(" confirm  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
+        InputMode::MethodSearch => vec![
+            Span::styled("Enter", hl),
+            Span::raw(" accept  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
+        InputMode::DetailSearch => vec![
+            Span::styled("Enter", hl),
+            Span::raw(" search  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
     };
 
     let right_text = if let Some(err) = &app.rpc_error {
@@ -188,151 +177,4 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
         Paragraph::new(Line::from(right_text)).alignment(ratatui::layout::Alignment::Right),
         cols[1],
     );
-}
-
-fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
-    let vertical = Layout::vertical([Constraint::Length(height)])
-        .flex(Flex::Center)
-        .split(area);
-    Layout::horizontal([Constraint::Length(width)])
-        .flex(Flex::Center)
-        .split(vertical[0])[0]
-}
-
-fn render_search_input(app: &App, frame: &mut Frame, area: Rect) {
-    let popup = centered_rect(50, 3, area);
-    frame.render_widget(Clear, popup);
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Search Transaction")
-        .border_style(Style::default().fg(Color::Cyan));
-
-    let input = Line::from(vec![
-        Span::raw(&app.search_input),
-        Span::styled("_", Style::default().fg(Color::Yellow)),
-    ]);
-
-    frame.render_widget(
-        Paragraph::new(input)
-            .style(Style::default().fg(Color::White))
-            .block(block),
-        popup,
-    );
-}
-
-fn render_search_overlay(result: &SearchResult, frame: &mut Frame, area: Rect) {
-    let lines = match result {
-        SearchResult::Mempool { txid, entry } => {
-            let fee_rate = if entry.vsize > 0 {
-                let fee_sats = entry.fees.base.as_f64() * 100_000_000.0;
-                format!("{:.1} sat/vB", fee_sats / entry.vsize as f64)
-            } else {
-                "—".into()
-            };
-            vec![
-                overlay_kv(
-                    "Status",
-                    "MEMPOOL",
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                overlay_kv("TXID", fmt_abbreviated_hash(txid), Style::default()),
-                overlay_kv("Fee", fmt_btc(entry.fees.base.as_f64()), Style::default()),
-                overlay_kv("Fee Rate", &fee_rate, Style::default()),
-                overlay_kv("vSize", fmt_number(entry.vsize), Style::default()),
-                overlay_kv("Weight", fmt_number(entry.weight), Style::default()),
-                overlay_kv(
-                    "Ancestors",
-                    entry.ancestorcount.to_string(),
-                    Style::default(),
-                ),
-                overlay_kv(
-                    "Descendants",
-                    entry.descendantcount.to_string(),
-                    Style::default(),
-                ),
-                overlay_kv("Age", fmt_relative_time(entry.time), Style::default()),
-            ]
-        }
-        SearchResult::Confirmed { txid, tx } => {
-            let mut lines = vec![
-                overlay_kv(
-                    "Status",
-                    "CONFIRMED",
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                overlay_kv("TXID", fmt_abbreviated_hash(txid), Style::default()),
-                overlay_kv(
-                    "Confs",
-                    tx.confirmations
-                        .map(fmt_number)
-                        .unwrap_or_else(|| "—".into()),
-                    Style::default(),
-                ),
-                overlay_kv("vSize", fmt_number(tx.vsize), Style::default()),
-                overlay_kv("Weight", fmt_number(tx.weight), Style::default()),
-                overlay_kv("Inputs", tx.vin.len().to_string(), Style::default()),
-                overlay_kv("Outputs", tx.vout.len().to_string(), Style::default()),
-            ];
-            if let Some(bt) = tx.blocktime {
-                lines.push(overlay_kv(
-                    "Block Age",
-                    fmt_relative_time(bt),
-                    Style::default(),
-                ));
-            }
-            lines
-        }
-    };
-
-    let height = lines.len() as u16 + 2;
-    let width = 46;
-    let popup = centered_rect(width, height, area);
-
-    frame.render_widget(Clear, popup);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Transaction")
-        .border_style(Style::default().fg(Color::Cyan));
-    frame.render_widget(Paragraph::new(lines).block(block), popup);
-}
-
-fn render_error_overlay(err: &str, frame: &mut Frame, area: Rect) {
-    let popup = centered_rect(46, 5, area);
-    frame.render_widget(Clear, popup);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Search Error")
-        .border_style(Style::default().fg(Color::Red));
-    frame.render_widget(
-        Paragraph::new(err.to_string())
-            .style(Style::default().fg(Color::Red))
-            .block(block),
-        popup,
-    );
-}
-
-fn render_searching_overlay(frame: &mut Frame, area: Rect) {
-    let popup = centered_rect(30, 3, area);
-    frame.render_widget(Clear, popup);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
-    frame.render_widget(
-        Paragraph::new("Searching...")
-            .style(Style::default().fg(Color::Cyan))
-            .block(block),
-        popup,
-    );
-}
-
-fn overlay_kv(key: &str, value: impl Into<String>, value_style: Style) -> Line<'static> {
-    Line::from(vec![
-        Span::styled(format!("{:<14}", key), Style::default().fg(Color::DarkGray)),
-        Span::styled(Into::<String>::into(value), value_style),
-    ])
 }
