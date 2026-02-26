@@ -329,8 +329,8 @@ impl App {
         match self.input_mode {
             InputMode::Normal => match self.focus {
                 Focus::TabBar => match key.code {
-                    KeyCode::Right => self.tab = self.tab.next(),
-                    KeyCode::Left => self.tab = self.tab.prev(),
+                    KeyCode::Right | KeyCode::Char('l') => self.tab = self.tab.next(),
+                    KeyCode::Left | KeyCode::Char('h') => self.tab = self.tab.prev(),
                     KeyCode::Enter => self.focus = Focus::Content,
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
                     KeyCode::Char('/') => {

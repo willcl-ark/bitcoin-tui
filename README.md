@@ -84,7 +84,7 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Switch tab |
+| `h` / `l` / `←` / `→` | Switch tab |
 | `Enter` | Enter tab content |
 | `/` | Search for a transaction by txid |
 | `q` / `Esc` | Quit |

@@ -89,7 +89,7 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
         match app.input_mode {
             InputMode::Normal => match app.focus {
                 Focus::TabBar => vec![
-                    Span::styled("←/→", hl),
+                    Span::styled("h/l/←/→", hl),
                     Span::raw(" switch tab  "),
                     Span::styled("Enter", hl),
                     Span::raw(" select  "),
