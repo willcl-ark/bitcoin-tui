@@ -148,7 +148,7 @@ fn render_chain_details(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
     let lines = vec![
-        kv("Best", fmt_abbreviated_hash(&info.bestblockhash), Color::White),
+        kv("Best", info.bestblockhash.clone(), Color::White),
         kv("Difficulty", fmt_difficulty(info.difficulty), Color::White),
         kv("Disk", fmt_bytes(info.size_on_disk), Color::White),
         kv(
