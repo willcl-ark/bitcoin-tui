@@ -1,8 +1,10 @@
 use std::time::Instant;
 
 use crossterm::event::KeyEvent;
+use ratatui::widgets::ListState;
 
 use crate::rpc_types::*;
+use crate::wallet_schema::{RpcMethod, load_wallet_methods};
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -11,10 +13,17 @@ pub enum Tab {
     Mempool,
     Network,
     Peers,
+    Wallet,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Dashboard, Tab::Mempool, Tab::Network, Tab::Peers];
+    pub const ALL: [Tab; 5] = [
+        Tab::Dashboard,
+        Tab::Mempool,
+        Tab::Network,
+        Tab::Peers,
+        Tab::Wallet,
+    ];
 
     pub fn title(self) -> &'static str {
         match self {
@@ -22,6 +31,7 @@ impl Tab {
             Tab::Mempool => "Mempool",
             Tab::Network => "Network",
             Tab::Peers => "Peers",
+            Tab::Wallet => "Wallet",
         }
     }
 
@@ -30,16 +40,18 @@ impl Tab {
             Tab::Dashboard => Tab::Mempool,
             Tab::Mempool => Tab::Network,
             Tab::Network => Tab::Peers,
-            Tab::Peers => Tab::Dashboard,
+            Tab::Peers => Tab::Wallet,
+            Tab::Wallet => Tab::Dashboard,
         }
     }
 
     pub fn prev(self) -> Tab {
         match self {
-            Tab::Dashboard => Tab::Peers,
+            Tab::Dashboard => Tab::Wallet,
             Tab::Mempool => Tab::Dashboard,
             Tab::Network => Tab::Mempool,
             Tab::Peers => Tab::Network,
+            Tab::Wallet => Tab::Peers,
         }
     }
 }
@@ -49,6 +61,8 @@ pub enum InputMode {
     #[default]
     Normal,
     Search,
+    WalletArg,
+    WalletPicker,
 }
 
 pub struct PollResult {
@@ -70,9 +84,32 @@ pub enum Event {
     Tick,
     PollComplete(Box<PollResult>),
     SearchComplete(Box<Result<SearchResult, String>>),
+    WalletRpcComplete(Box<Result<String, String>>),
+    WalletListComplete(Box<Result<Vec<String>, String>>),
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WalletFocus {
+    List,
+    Args,
+}
+
+pub struct WalletTab {
+    pub methods: Vec<RpcMethod>,
+    pub selected: usize,
+    pub list_state: ListState,
+    pub focus: WalletFocus,
+    pub arg_input: String,
+    pub result: Option<String>,
+    pub error: Option<String>,
+    pub calling: bool,
+    pub result_scroll: u16,
+    pub wallet_name: String,
+    pub wallets: Vec<String>,
+    pub picker_index: usize,
+    pub fetching_wallets: bool,
+}
+
 pub struct App {
     pub tab: Tab,
     pub input_mode: InputMode,
@@ -94,6 +131,52 @@ pub struct App {
     pub rpc_error: Option<String>,
     pub last_update: Option<Instant>,
     pub refreshing: bool,
+
+    pub wallet: WalletTab,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let methods = load_wallet_methods();
+        let mut list_state = ListState::default();
+        if !methods.is_empty() {
+            list_state.select(Some(0));
+        }
+        App {
+            tab: Tab::default(),
+            input_mode: InputMode::default(),
+            search_input: String::new(),
+            should_quit: false,
+            blockchain: None,
+            network: None,
+            mempool: None,
+            mining: None,
+            peers: None,
+            recent_blocks: Vec::new(),
+            last_tip: None,
+            search_result: None,
+            search_error: None,
+            searching: false,
+            rpc_error: None,
+            last_update: None,
+            refreshing: false,
+            wallet: WalletTab {
+                methods,
+                selected: 0,
+                list_state,
+                focus: WalletFocus::List,
+                arg_input: String::new(),
+                result: None,
+                error: None,
+                calling: false,
+                result_scroll: 0,
+                wallet_name: String::new(),
+                wallets: Vec::new(),
+                picker_index: 0,
+                fetching_wallets: false,
+            },
+        }
+    }
 }
 
 impl App {
@@ -103,6 +186,38 @@ impl App {
             Event::Tick => {}
             Event::PollComplete(result) => self.handle_poll(*result),
             Event::SearchComplete(result) => self.handle_search(*result),
+            Event::WalletListComplete(result) => {
+                self.wallet.fetching_wallets = false;
+                match *result {
+                    Ok(list) => {
+                        self.wallet.wallets = list;
+                        self.wallet.picker_index = self
+                            .wallet
+                            .wallets
+                            .iter()
+                            .position(|w| *w == self.wallet.wallet_name)
+                            .unwrap_or(0);
+                        self.input_mode = InputMode::WalletPicker;
+                    }
+                    Err(e) => {
+                        self.wallet.error = Some(format!("listwallets failed: {}", e));
+                    }
+                }
+            }
+            Event::WalletRpcComplete(result) => {
+                self.wallet.calling = false;
+                match *result {
+                    Ok(json) => {
+                        self.wallet.error = None;
+                        self.wallet.result = Some(json);
+                        self.wallet.result_scroll = 0;
+                    }
+                    Err(e) => {
+                        self.wallet.result = None;
+                        self.wallet.error = Some(e);
+                    }
+                }
+            }
         }
     }
 
@@ -184,21 +299,87 @@ impl App {
         }
 
         match self.input_mode {
-            InputMode::Normal => match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-                KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
-                    self.tab = self.tab.next();
+            InputMode::Normal => {
+                if self.tab == Tab::Wallet {
+                    match key.code {
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            let len = self.wallet.methods.len();
+                            if len > 0 {
+                                self.wallet.selected = (self.wallet.selected + 1) % len;
+                                self.wallet.list_state.select(Some(self.wallet.selected));
+                                self.wallet.result = None;
+                                self.wallet.error = None;
+                                self.wallet.arg_input.clear();
+                                self.wallet.result_scroll = 0;
+                            }
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            let len = self.wallet.methods.len();
+                            if len > 0 {
+                                self.wallet.selected = (self.wallet.selected + len - 1) % len;
+                                self.wallet.list_state.select(Some(self.wallet.selected));
+                                self.wallet.result = None;
+                                self.wallet.error = None;
+                                self.wallet.arg_input.clear();
+                                self.wallet.result_scroll = 0;
+                            }
+                        }
+                        KeyCode::Enter => {
+                            let method = &self.wallet.methods[self.wallet.selected];
+                            if method.params.is_empty() {
+                                self.wallet.calling = true;
+                            } else {
+                                self.input_mode = InputMode::WalletArg;
+                                self.wallet.focus = WalletFocus::Args;
+                            }
+                        }
+                        KeyCode::Char('w') => {
+                            self.wallet.fetching_wallets = true;
+                        }
+                        KeyCode::Char('G') => {
+                            let len = self.wallet.methods.len();
+                            if len > 0 {
+                                self.wallet.selected = len - 1;
+                                self.wallet.list_state.select(Some(self.wallet.selected));
+                            }
+                        }
+                        KeyCode::Char('g') => {
+                            if !self.wallet.methods.is_empty() {
+                                self.wallet.selected = 0;
+                                self.wallet.list_state.select(Some(0));
+                            }
+                        }
+                        KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+                        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                            self.tab = self.tab.next();
+                        }
+                        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => {
+                            self.tab = self.tab.prev();
+                        }
+                        KeyCode::Char('/') => {
+                            self.input_mode = InputMode::Search;
+                            self.search_input.clear();
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+                        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                            self.tab = self.tab.next();
+                        }
+                        KeyCode::BackTab => self.tab = self.tab.prev(),
+                        KeyCode::Left | KeyCode::Char('h') => {
+                            self.tab = self.tab.prev();
+                        }
+                        KeyCode::Char('/') => {
+                            self.input_mode = InputMode::Search;
+                            self.search_input.clear();
+                        }
+                        _ => {}
+                    }
                 }
-                KeyCode::BackTab => self.tab = self.tab.prev(),
-                KeyCode::Left | KeyCode::Char('h') => {
-                    self.tab = self.tab.prev();
-                }
-                KeyCode::Char('/') => {
-                    self.input_mode = InputMode::Search;
-                    self.search_input.clear();
-                }
-                _ => {}
-            },
+            }
             InputMode::Search => match key.code {
                 KeyCode::Esc => {
                     self.input_mode = InputMode::Normal;
@@ -216,6 +397,52 @@ impl App {
                 KeyCode::Char(c) => {
                     if !key.modifiers.contains(KeyModifiers::CONTROL) {
                         self.search_input.push(c);
+                    }
+                }
+                _ => {}
+            },
+            InputMode::WalletArg => match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.wallet.focus = WalletFocus::List;
+                    self.wallet.arg_input.clear();
+                }
+                KeyCode::Enter => {
+                    self.wallet.calling = true;
+                    self.wallet.focus = WalletFocus::List;
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Backspace => {
+                    self.wallet.arg_input.pop();
+                }
+                KeyCode::Char(c) => {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.wallet.arg_input.push(c);
+                    }
+                }
+                _ => {}
+            },
+            InputMode::WalletPicker => match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Enter => {
+                    if !self.wallet.wallets.is_empty() {
+                        self.wallet.wallet_name =
+                            self.wallet.wallets[self.wallet.picker_index].clone();
+                    }
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    let len = self.wallet.wallets.len();
+                    if len > 0 {
+                        self.wallet.picker_index = (self.wallet.picker_index + 1) % len;
+                    }
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    let len = self.wallet.wallets.len();
+                    if len > 0 {
+                        self.wallet.picker_index = (self.wallet.picker_index + len - 1) % len;
                     }
                 }
                 _ => {}

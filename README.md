@@ -10,6 +10,7 @@ Terminal UI for monitoring a running Bitcoin Core node.
 - **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
 - **Network** — connection details, per-network reachability, local addresses
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 status
+- **Wallet** — browse all 56 wallet RPC methods, view help text, type arguments, execute calls and view results
 - **Transaction search** — look up any txid in mempool or on-chain via `/`
 
 ## Requirements
@@ -65,8 +66,11 @@ By default connects to `127.0.0.1:8332` using cookie auth from `~/.bitcoin/.cook
 | `Tab` / `l` / `→` | Next tab |
 | `Shift+Tab` / `h` / `←` | Previous tab |
 | `/` | Search for a transaction |
-| `Enter` | Submit search |
+| `Enter` | Submit search / call wallet method |
 | `Esc` | Cancel search / close overlay / quit |
+| `j` / `k` | Scroll wallet method list |
+| `w` | Set wallet name (Wallet tab) |
+| `g` / `G` | Jump to first / last method |
 | `q` | Quit |
 
 ## Examples

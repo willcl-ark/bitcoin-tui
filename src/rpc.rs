@@ -100,6 +100,56 @@ impl RpcClient {
             .map_err(|e| format!("Failed to parse {}: {}", method, e))
     }
 
+    pub async fn call_raw(
+        &self,
+        method: &str,
+        params: Value,
+        wallet: Option<&str>,
+    ) -> Result<Value, String> {
+        let auth = self.auth_header().await?;
+        let url = match wallet {
+            Some(name) if !name.is_empty() => format!("{}/wallet/{}", self.url, name),
+            _ => self.url.clone(),
+        };
+        let body = json!({
+            "jsonrpc": "1.0",
+            "id": method,
+            "method": method,
+            "params": params,
+        });
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("Authorization", &auth)
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("RPC connection failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("RPC error ({}): {}", status, text));
+        }
+
+        let parsed: Value =
+            serde_json::from_str(&text).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+        if let Some(err) = parsed.get("error")
+            && !err.is_null()
+        {
+            return Err(format!("RPC error: {}", err));
+        }
+
+        Ok(parsed["result"].clone())
+    }
+
     pub async fn get_blockchain_info(&self) -> Result<BlockchainInfo, String> {
         self.call("getblockchaininfo", json!([])).await
     }

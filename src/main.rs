@@ -4,6 +4,7 @@ mod rpc;
 mod rpc_types;
 mod tabs;
 mod ui;
+mod wallet_schema;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -137,6 +138,46 @@ async fn run(
             });
         }
 
+        if app.wallet.fetching_wallets {
+            app.wallet.fetching_wallets = false;
+            let rpc = rpc.clone();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let result = rpc
+                    .call_raw("listwallets", serde_json::json!([]), None)
+                    .await
+                    .and_then(|v| {
+                        serde_json::from_value::<Vec<String>>(v)
+                            .map_err(|e| format!("Failed to parse listwallets: {}", e))
+                    });
+                let _ = tx.send(Event::WalletListComplete(Box::new(result)));
+            });
+        }
+
+        if app.wallet.calling {
+            app.wallet.calling = false;
+            let method = app.wallet.methods[app.wallet.selected].name.clone();
+            let arg_text = app.wallet.arg_input.clone();
+            let wallet_name = app.wallet.wallet_name.clone();
+            let rpc = rpc.clone();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let params = parse_args(&arg_text);
+                let wallet = if wallet_name.is_empty() {
+                    None
+                } else {
+                    Some(wallet_name.as_str())
+                };
+                let result = match params {
+                    Ok(p) => rpc.call_raw(&method, p, wallet).await.map(|v| {
+                        serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string())
+                    }),
+                    Err(e) => Err(e),
+                };
+                let _ = tx.send(Event::WalletRpcComplete(Box::new(result)));
+            });
+        }
+
         tokio::select! {
             _ = tick.tick() => {
                 app.update(Event::Tick);
@@ -215,6 +256,15 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
         }
     });
+}
+
+fn parse_args(input: &str) -> Result<serde_json::Value, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Ok(serde_json::json!([]));
+    }
+    let wrapped = format!("[{}]", trimmed);
+    serde_json::from_str(&wrapped).map_err(|e| format!("Invalid args: {}", e))
 }
 
 async fn search_tx(rpc: &RpcClient, txid: &str) -> Result<SearchResult, String> {

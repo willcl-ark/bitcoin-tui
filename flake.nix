@@ -47,7 +47,12 @@
         let
           pkgs = mkPkgs system;
           craneLib = mkCraneLib system;
-          src = craneLib.cleanCargoSource ./.;
+          src = pkgs.lib.cleanSourceWith {
+            src = ./.;
+            filter =
+              path: type:
+              (craneLib.filterCargoSources path type) || (builtins.baseNameOf path == "openrpc.json");
+          };
           commonArgs = {
             inherit src;
             pname = "bitcoin-tui";

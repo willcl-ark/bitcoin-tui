@@ -67,6 +67,7 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
         Tab::Mempool => crate::tabs::mempool::render(app, frame, area),
         Tab::Network => crate::tabs::network::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
+        Tab::Wallet => crate::tabs::wallet::render(app, frame, area),
     }
 }
 
@@ -80,6 +81,16 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
         ]
     } else {
         match app.input_mode {
+            InputMode::Normal if app.tab == Tab::Wallet => vec![
+                Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                Span::raw(" scroll  "),
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(" call  "),
+                Span::styled("w", Style::default().fg(Color::Yellow)),
+                Span::raw(" wallet  "),
+                Span::styled("q", Style::default().fg(Color::Yellow)),
+                Span::raw(" quit"),
+            ],
             InputMode::Normal => vec![
                 Span::styled("Tab/←/→", Style::default().fg(Color::Yellow)),
                 Span::raw(" navigate  "),
@@ -91,6 +102,20 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
             InputMode::Search => vec![
                 Span::styled("Enter", Style::default().fg(Color::Yellow)),
                 Span::raw(" search  "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::raw(" cancel"),
+            ],
+            InputMode::WalletArg => vec![
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(" send  "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::raw(" cancel"),
+            ],
+            InputMode::WalletPicker => vec![
+                Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                Span::raw(" select  "),
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(" confirm  "),
                 Span::styled("Esc", Style::default().fg(Color::Yellow)),
                 Span::raw(" cancel"),
             ],
