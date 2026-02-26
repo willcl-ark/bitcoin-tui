@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
-use crate::app::{App, InputMode, WalletFocus};
+use crate::app::{App, Focus, InputMode, WalletPane};
 
 pub fn render(app: &App, frame: &mut Frame, area: Rect) {
     let cols = Layout::horizontal([Constraint::Length(30), Constraint::Min(0)]).split(area);
@@ -19,13 +19,39 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
     }
 }
 
+fn pane_border_style(app: &App, pane: WalletPane) -> Style {
+    if app.focus == Focus::Content && app.wallet.pane == pane {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    }
+}
+
 fn render_method_list(app: &App, frame: &mut Frame, area: Rect) {
-    let items: Vec<ListItem> = app
-        .wallet
-        .methods
-        .iter()
-        .map(|m| ListItem::new(m.name.as_str()))
-        .collect();
+    let is_filtered = app.input_mode == InputMode::MethodSearch;
+
+    let (items, selected_in_list): (Vec<ListItem>, Option<usize>) = if is_filtered {
+        let items: Vec<ListItem> = app
+            .wallet
+            .filtered_indices
+            .iter()
+            .map(|&i| ListItem::new(app.wallet.methods[i].name.as_str()))
+            .collect();
+        let sel = if items.is_empty() {
+            None
+        } else {
+            Some(app.wallet.filtered_selected)
+        };
+        (items, sel)
+    } else {
+        let items: Vec<ListItem> = app
+            .wallet
+            .methods
+            .iter()
+            .map(|m| ListItem::new(m.name.as_str()))
+            .collect();
+        (items, Some(app.wallet.selected))
+    };
 
     let title = if app.wallet.wallet_name.is_empty() {
         "Methods".to_string()
@@ -33,23 +59,65 @@ fn render_method_list(app: &App, frame: &mut Frame, area: Rect) {
         format!("Methods [{}]", app.wallet.wallet_name)
     };
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("> ");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .border_style(pane_border_style(app, WalletPane::Methods));
 
-    let mut state = app.wallet.list_state;
-    frame.render_stateful_widget(list, area, &mut state);
+    if is_filtered {
+        let rows = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("> ");
+
+        let mut state = ratatui::widgets::ListState::default();
+        state.select(selected_in_list);
+        frame.render_stateful_widget(list, rows[0], &mut state);
+
+        let search_line = Line::from(vec![
+            Span::styled("/ ", Style::default().fg(Color::Cyan)),
+            Span::raw(&app.wallet.method_search),
+            Span::styled("_", Style::default().fg(Color::Yellow)),
+        ]);
+        frame.render_widget(Paragraph::new(search_line), rows[1]);
+    } else {
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("> ");
+
+        let mut state = app.wallet.list_state;
+        frame.render_stateful_widget(list, area, &mut state);
+    }
 }
 
 fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
-    let block = Block::default().borders(Borders::ALL).title("Detail");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    let is_searching = app.input_mode == InputMode::DetailSearch;
+    let has_matches = !app.wallet.detail_matches.is_empty();
+
+    let (detail_area, search_area) = if is_searching || has_matches {
+        let rows = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+        (rows[0], Some(rows[1]))
+    } else {
+        (area, None)
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Detail")
+        .border_style(pane_border_style(app, WalletPane::Detail));
+    let inner = block.inner(detail_area);
+    frame.render_widget(block, detail_area);
 
     if app.wallet.methods.is_empty() {
         return;
@@ -63,7 +131,9 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
             Span::styled("Wallet: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 &app.wallet.wallet_name,
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]));
         lines.push(Line::from(""));
@@ -107,7 +177,7 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
         }
     }
 
-    if app.wallet.focus == WalletFocus::Args || !app.wallet.arg_input.is_empty() {
+    if app.wallet.editing_args || !app.wallet.arg_input.is_empty() {
         lines.push(Line::from(""));
         let style = if app.input_mode == InputMode::WalletArg {
             Style::default().fg(Color::Cyan)
@@ -134,6 +204,8 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
         )));
     }
 
+    let result_line_offset = lines.len();
+
     if let Some(result) = &app.wallet.result {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
@@ -142,8 +214,24 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
         )));
-        for rl in result.lines() {
-            lines.push(Line::from(rl.to_string()));
+
+        let search_query = if has_matches {
+            Some(app.wallet.detail_search.to_lowercase())
+        } else {
+            None
+        };
+
+        for (i, rl) in result.lines().enumerate() {
+            let is_match_line = app.wallet.detail_matches.iter().any(|&m| m as usize == i);
+            if is_match_line {
+                if let Some(ref query) = search_query {
+                    lines.push(highlight_line(rl, query));
+                } else {
+                    lines.push(Line::from(rl.to_string()));
+                }
+            } else {
+                lines.push(Line::from(rl.to_string()));
+            }
         }
     }
 
@@ -155,10 +243,68 @@ fn render_detail(app: &App, frame: &mut Frame, area: Rect) {
         )));
     }
 
+    let scroll_offset = if has_matches {
+        let idx = app
+            .wallet
+            .detail_match_index
+            .min(app.wallet.detail_matches.len().saturating_sub(1));
+        let match_line = app.wallet.detail_matches[idx];
+        result_line_offset as u16 + 2 + match_line
+    } else {
+        app.wallet.result_scroll
+    };
+
     let paragraph = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
-        .scroll((app.wallet.result_scroll, 0));
+        .scroll((scroll_offset, 0));
     frame.render_widget(paragraph, inner);
+
+    if let Some(search_area) = search_area {
+        if is_searching {
+            let search_line = Line::from(vec![
+                Span::styled("/ ", Style::default().fg(Color::Cyan)),
+                Span::raw(&app.wallet.detail_search),
+                Span::styled("_", Style::default().fg(Color::Yellow)),
+            ]);
+            frame.render_widget(Paragraph::new(search_line), search_area);
+        } else if has_matches {
+            let info = format!(
+                "[{}/{}] {}",
+                app.wallet.detail_match_index + 1,
+                app.wallet.detail_matches.len(),
+                app.wallet.detail_search
+            );
+            let search_line = Line::from(Span::styled(info, Style::default().fg(Color::Cyan)));
+            frame.render_widget(Paragraph::new(search_line), search_area);
+        }
+    }
+}
+
+fn highlight_line<'a>(line: &str, query: &str) -> Line<'a> {
+    let lower = line.to_lowercase();
+    let mut spans = Vec::new();
+    let mut pos = 0;
+
+    while let Some(start) = lower[pos..].find(query) {
+        let start = pos + start;
+        if start > pos {
+            spans.push(Span::raw(line[pos..start].to_string()));
+        }
+        spans.push(Span::styled(
+            line[start..start + query.len()].to_string(),
+            Style::default()
+                .bg(Color::Yellow)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        ));
+        pos = start + query.len();
+    }
+
+    if pos < line.len() {
+        spans.push(Span::raw(line[pos..].to_string()));
+    }
+
+    Line::from(spans)
 }
 
 fn render_wallet_picker(app: &App, frame: &mut Frame, area: Rect) {

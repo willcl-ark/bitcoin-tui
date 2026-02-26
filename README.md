@@ -78,33 +78,44 @@ By default connects to `127.0.0.1:8332` using cookie auth from `~/.bitcoin/.cook
 
 ### Keybindings
 
-#### Global
+The UI uses a two-level focus model: **tab bar** (top-level navigation) and **content** (interacting within a tab).
+
+#### Tab bar (default)
 
 | Key | Action |
 |-----|--------|
-| `Tab` / `l` / `→` | Next tab |
-| `Shift+Tab` / `h` / `←` | Previous tab |
+| `←` / `→` | Switch tab |
+| `Enter` | Enter tab content |
 | `/` | Search for a transaction by txid |
-| `Esc` | Cancel input / close overlay / quit |
-| `q` | Quit |
+| `q` / `Esc` | Quit |
 
-#### Transaction search
-
-| Key | Action |
-|-----|--------|
-| *type* | Enter txid |
-| `Enter` | Submit search |
-| `Esc` | Cancel |
-
-#### Wallet tab
+#### Content mode
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` / `↑` / `↓` | Scroll method list |
+| `Esc` | Return to tab bar |
+
+#### Wallet — methods pane
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Navigate method list |
 | `g` / `G` | Jump to first / last method |
 | `Enter` | Call method (opens arg input if method has parameters) |
+| `/` | Search/filter methods |
 | `w` | Open wallet selector |
-| `Esc` | Cancel arg input |
+| `Tab` | Switch to detail pane |
+| `Esc` | Return to tab bar |
+
+#### Wallet — detail pane
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Scroll |
+| `/` | Search result text |
+| `n` / `N` | Next / previous match |
+| `Tab` | Switch to methods pane |
+| `Esc` | Return to tab bar |
 
 #### Wallet selector popup
 

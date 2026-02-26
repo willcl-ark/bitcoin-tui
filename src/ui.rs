@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Tabs},
 };
 
-use crate::app::{App, InputMode, SearchResult, Tab};
+use crate::app::{App, Focus, InputMode, SearchResult, Tab, WalletPane};
 use crate::format::*;
 
 pub fn render(app: &App, frame: &mut Frame) {
@@ -41,13 +41,17 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
     let titles: Vec<Line> = Tab::ALL.iter().map(|t| Line::from(t.title())).collect();
     let selected = Tab::ALL.iter().position(|t| *t == app.tab).unwrap_or(0);
 
+    let highlight = if app.focus == Focus::Content {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    };
+
     let tabs = Tabs::new(titles)
         .select(selected)
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
+        .highlight_style(highlight)
         .divider("│");
 
     frame.render_widget(tabs, tab_area);
@@ -72,53 +76,93 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
+    let hl = Style::default().fg(Color::Yellow);
+
     let left_spans = if app.search_result.is_some() || app.search_error.is_some() {
         vec![
-            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled("Esc", hl),
             Span::raw(" dismiss  "),
-            Span::styled("q", Style::default().fg(Color::Yellow)),
+            Span::styled("q", hl),
             Span::raw(" quit"),
         ]
     } else {
         match app.input_mode {
-            InputMode::Normal if app.tab == Tab::Wallet => vec![
-                Span::styled("j/k", Style::default().fg(Color::Yellow)),
-                Span::raw(" methods  "),
-                Span::styled("↑/↓", Style::default().fg(Color::Yellow)),
-                Span::raw(" scroll  "),
-                Span::styled("Enter", Style::default().fg(Color::Yellow)),
-                Span::raw(" call  "),
-                Span::styled("w", Style::default().fg(Color::Yellow)),
-                Span::raw(" wallet  "),
-                Span::styled("q", Style::default().fg(Color::Yellow)),
-                Span::raw(" quit"),
-            ],
-            InputMode::Normal => vec![
-                Span::styled("Tab/←/→", Style::default().fg(Color::Yellow)),
-                Span::raw(" navigate  "),
-                Span::styled("/", Style::default().fg(Color::Yellow)),
-                Span::raw(" search  "),
-                Span::styled("q", Style::default().fg(Color::Yellow)),
-                Span::raw(" quit"),
-            ],
+            InputMode::Normal => match app.focus {
+                Focus::TabBar => vec![
+                    Span::styled("←/→", hl),
+                    Span::raw(" switch tab  "),
+                    Span::styled("Enter", hl),
+                    Span::raw(" select  "),
+                    Span::styled("/", hl),
+                    Span::raw(" search  "),
+                    Span::styled("q", hl),
+                    Span::raw(" quit"),
+                ],
+                Focus::Content if app.tab == Tab::Wallet => match app.wallet.pane {
+                    WalletPane::Methods => vec![
+                        Span::styled("j/k", hl),
+                        Span::raw(" methods  "),
+                        Span::styled("Enter", hl),
+                        Span::raw(" call  "),
+                        Span::styled("/", hl),
+                        Span::raw(" search  "),
+                        Span::styled("w", hl),
+                        Span::raw(" wallet  "),
+                        Span::styled("Tab", hl),
+                        Span::raw(" pane  "),
+                        Span::styled("Esc", hl),
+                        Span::raw(" back"),
+                    ],
+                    WalletPane::Detail => {
+                        let mut spans = vec![
+                            Span::styled("↑/↓", hl),
+                            Span::raw(" scroll  "),
+                            Span::styled("/", hl),
+                            Span::raw(" search  "),
+                        ];
+                        if !app.wallet.detail_matches.is_empty() {
+                            spans.push(Span::styled("n/N", hl));
+                            spans.push(Span::raw(" next/prev  "));
+                        }
+                        spans.push(Span::styled("Tab", hl));
+                        spans.push(Span::raw(" pane  "));
+                        spans.push(Span::styled("Esc", hl));
+                        spans.push(Span::raw(" back"));
+                        spans
+                    }
+                },
+                Focus::Content => vec![Span::styled("Esc", hl), Span::raw(" back")],
+            },
             InputMode::Search => vec![
-                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::styled("Enter", hl),
                 Span::raw(" search  "),
-                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::styled("Esc", hl),
                 Span::raw(" cancel"),
             ],
             InputMode::WalletArg => vec![
-                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::styled("Enter", hl),
                 Span::raw(" send  "),
-                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::styled("Esc", hl),
                 Span::raw(" cancel"),
             ],
             InputMode::WalletPicker => vec![
-                Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                Span::styled("j/k", hl),
                 Span::raw(" select  "),
-                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::styled("Enter", hl),
                 Span::raw(" confirm  "),
-                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::styled("Esc", hl),
+                Span::raw(" cancel"),
+            ],
+            InputMode::MethodSearch => vec![
+                Span::styled("Enter", hl),
+                Span::raw(" accept  "),
+                Span::styled("Esc", hl),
+                Span::raw(" cancel"),
+            ],
+            InputMode::DetailSearch => vec![
+                Span::styled("Enter", hl),
+                Span::raw(" search  "),
+                Span::styled("Esc", hl),
                 Span::raw(" cancel"),
             ],
         }
