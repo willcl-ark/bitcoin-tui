@@ -133,6 +133,7 @@ pub enum Event {
     RpcComplete(Box<Result<String, String>>),
     WalletListComplete(Box<Result<Vec<String>, String>>),
     PsbtRpcComplete(Box<Result<PsbtRpcResult, String>>),
+    ZmqBlockComplete(Box<Result<String, String>>),
     ZmqMessage(Box<ZmqEntry>),
     ZmqError(String),
 }
@@ -261,6 +262,11 @@ pub struct ZmqTab {
     pub selected: usize,
     pub enabled: bool,
     pub error: Option<String>,
+    pub block_lookup: Option<String>,
+    pub block_popup: Option<String>,
+    pub block_popup_error: Option<String>,
+    pub block_popup_loading: bool,
+    pub block_popup_scroll: u16,
 }
 
 pub struct WalletTab {
@@ -471,6 +477,21 @@ impl App {
             }
             Event::ZmqError(err) => {
                 self.zmq.error = Some(err);
+            }
+            Event::ZmqBlockComplete(result) => {
+                self.zmq.block_popup_loading = false;
+                match *result {
+                    Ok(json) => {
+                        self.zmq.block_popup = Some(json);
+                        self.zmq.block_popup_error = None;
+                        self.zmq.block_popup_scroll = 0;
+                    }
+                    Err(e) => {
+                        self.zmq.block_popup = None;
+                        self.zmq.block_popup_error = Some(e);
+                        self.zmq.block_popup_scroll = 0;
+                    }
+                }
             }
             Event::RpcComplete(result) => {
                 self.rpc.calling = false;
@@ -913,6 +934,31 @@ impl App {
     fn handle_zmq_content(&mut self, key: KeyEvent) {
         use crossterm::event::{KeyCode, KeyModifiers};
 
+        if self.zmq.block_popup_loading || self.zmq.block_popup.is_some() || self.zmq.block_popup_error.is_some() {
+            match key.code {
+                KeyCode::Esc => {
+                    self.zmq.block_popup_loading = false;
+                    self.zmq.block_popup = None;
+                    self.zmq.block_popup_error = None;
+                    self.zmq.block_popup_scroll = 0;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.zmq.block_popup_scroll = self.zmq.block_popup_scroll.saturating_add(1);
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.zmq.block_popup_scroll = self.zmq.block_popup_scroll.saturating_sub(1);
+                }
+                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.zmq.block_popup_scroll = self.zmq.block_popup_scroll.saturating_add(20);
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.zmq.block_popup_scroll = self.zmq.block_popup_scroll.saturating_sub(20);
+                }
+                _ => {}
+            }
+            return;
+        }
+
         let len = self.zmq.entries.len();
         if len == 0 {
             if key.code == KeyCode::Esc {
@@ -952,6 +998,12 @@ impl App {
                     self.tab = Tab::Transactions;
                     self.focus = Focus::Content;
                     self.input_mode = InputMode::Normal;
+                } else if entry.topic == "hashblock" {
+                    self.zmq.block_lookup = Some(entry.hash.clone());
+                    self.zmq.block_popup_loading = true;
+                    self.zmq.block_popup = None;
+                    self.zmq.block_popup_error = None;
+                    self.zmq.block_popup_scroll = 0;
                 }
             }
             _ => {}

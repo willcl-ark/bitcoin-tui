@@ -251,6 +251,18 @@ async fn run(
             });
         }
 
+        if let Some(block_hash) = app.zmq.block_lookup.take() {
+            let rpc = rpc.clone();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let result = rpc
+                    .call_raw("getblock", serde_json::json!([block_hash, 1]), None)
+                    .await
+                    .map(|v| serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()));
+                let _ = tx.send(Event::ZmqBlockComplete(Box::new(result)));
+            });
+        }
+
         tokio::select! {
             _ = tick.tick() => {
                 app.update(Event::Tick);

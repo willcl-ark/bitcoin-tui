@@ -138,7 +138,7 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::styled("g/G", hl),
                 Span::raw(" top/bottom  "),
                 Span::styled("Enter", hl),
-                Span::raw(" lookup tx  "),
+                Span::raw(" tx/block details  "),
                 Span::styled("Esc", hl),
                 Span::raw(" back"),
             ],
