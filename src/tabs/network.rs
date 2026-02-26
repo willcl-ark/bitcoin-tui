@@ -91,7 +91,7 @@ fn render_networks(app: &App, frame: &mut Frame, area: Rect) {
             let reachable_color = if n.reachable {
                 Color::Green
             } else {
-                Color::DarkGray
+                Color::Red
             };
             Row::new(vec![
                 Cell::from(n.name.clone()),
