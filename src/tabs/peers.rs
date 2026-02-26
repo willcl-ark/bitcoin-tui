@@ -143,6 +143,7 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
 
     render_query_line(app, frame, chunks.get(1).copied());
     render_peer_popup(app, frame, area);
+    render_query_help_popup(app, frame, area);
 }
 
 fn abbreviate_conn_type(ct: &str) -> String {
@@ -198,4 +199,58 @@ fn render_query_line(app: &App, frame: &mut Frame, area: Option<Rect>) {
         "query: none  (press : for where/sort/clear)".to_string()
     };
     frame.render_widget(Paragraph::new(text), area);
+}
+
+fn render_query_help_popup(app: &App, frame: &mut Frame, area: Rect) {
+    if !app.peers_query_help_open {
+        return;
+    }
+
+    let popup = Layout::vertical([Constraint::Length(area.height.saturating_sub(6))])
+        .flex(Flex::Center)
+        .split(area);
+    let popup = Layout::horizontal([Constraint::Length(area.width.saturating_sub(8))])
+        .flex(Flex::Center)
+        .split(popup[0])[0];
+
+    frame.render_widget(Clear, popup);
+
+    let help = [
+        "Peers Query Help",
+        "",
+        "Commands:",
+        "  where <field> <op> <value> [and ...]",
+        "  sort <field> [asc|desc]",
+        "  clear | clear where | clear sort",
+        "",
+        "Operators:",
+        "  ==  !=  >  >=  <  <=  ~=",
+        "",
+        "Notes:",
+        "  - Nested fields use dot notation (e.g. bytessent_per_msg.addrv2)",
+        "  - Tab completes commands/fields/operators/values",
+        "  - Press Tab repeatedly to cycle completion candidates",
+        "",
+        "Examples:",
+        "  where version == 70016 and subver ~= \"Satoshi\"",
+        "  where inbound == false and network == \"ipv4\"",
+        "  sort bytessent_per_msg.addrv2 desc",
+        "  clear",
+        "",
+        "Keys:",
+        "  Esc close  j/k scroll  Ctrl-u/d page",
+    ]
+    .join("\n");
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Peers Query Help (Esc to close)")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    frame.render_widget(
+        Paragraph::new(help)
+            .block(block)
+            .scroll((app.peers_query_help_scroll, 0)),
+        popup,
+    );
 }

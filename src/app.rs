@@ -340,6 +340,8 @@ pub struct App {
     pub peers_selected: usize,
     pub peers_popup: Option<String>,
     pub peers_popup_scroll: u16,
+    pub peers_query_help_open: bool,
+    pub peers_query_help_scroll: u16,
     pub peers_query: PeerQuery,
     pub peers_query_input: String,
     pub peers_query_error: Option<String>,
@@ -378,6 +380,8 @@ impl Default for App {
             peers_selected: 0,
             peers_popup: None,
             peers_popup_scroll: 0,
+            peers_query_help_open: false,
+            peers_query_help_scroll: 0,
             peers_query: PeerQuery::default(),
             peers_query_input: String::new(),
             peers_query_error: None,
@@ -1106,6 +1110,29 @@ impl App {
             return;
         }
 
+        if self.peers_query_help_open {
+            match key.code {
+                KeyCode::Esc => {
+                    self.peers_query_help_open = false;
+                    self.peers_query_help_scroll = 0;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.peers_query_help_scroll = self.peers_query_help_scroll.saturating_add(1);
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.peers_query_help_scroll = self.peers_query_help_scroll.saturating_sub(1);
+                }
+                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.peers_query_help_scroll = self.peers_query_help_scroll.saturating_add(20);
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.peers_query_help_scroll = self.peers_query_help_scroll.saturating_sub(20);
+                }
+                _ => {}
+            }
+            return;
+        }
+
         let len = self.peers_visible_indices.len();
         let max = len.saturating_sub(1);
 
@@ -1118,6 +1145,10 @@ impl App {
             }
             KeyCode::Char('v') => {
                 self.peers_show_user_agent = !self.peers_show_user_agent;
+            }
+            KeyCode::Char('?') => {
+                self.peers_query_help_open = true;
+                self.peers_query_help_scroll = 0;
             }
             KeyCode::Char('c') => {
                 self.peers_query = PeerQuery::default();

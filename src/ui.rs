@@ -170,6 +170,14 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::styled("Esc", hl),
                 Span::raw(" close"),
             ],
+            Focus::Content if app.tab == Tab::Peers && app.peers_query_help_open => vec![
+                Span::styled("j/k", hl),
+                Span::raw(" scroll  "),
+                Span::styled("C-u/d", hl),
+                Span::raw(" page  "),
+                Span::styled("Esc", hl),
+                Span::raw(" close"),
+            ],
             Focus::Content if app.tab == Tab::Peers => vec![
                 Span::styled("j/k", hl),
                 Span::raw(" select  "),
@@ -177,6 +185,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::raw(" details  "),
                 Span::styled(":", hl),
                 Span::raw(" query  "),
+                Span::styled("?", hl),
+                Span::raw(" help  "),
                 Span::styled("c", hl),
                 Span::raw(" clear  "),
                 Span::styled("v", hl),
