@@ -46,7 +46,7 @@ pub fn load_wallet_methods() -> Vec<RpcMethod> {
 }
 
 pub fn load_non_wallet_methods() -> Vec<RpcMethod> {
-    load_methods(|cat| cat != Some("wallet"))
+    load_methods(|cat| !matches!(cat, Some("wallet" | "rawtransactions")))
 }
 
 fn load_methods(filter: impl Fn(Option<&str>) -> bool) -> Vec<RpcMethod> {
