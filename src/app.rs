@@ -24,9 +24,9 @@ impl Tab {
         Tab::Mempool,
         Tab::Network,
         Tab::Peers,
-        Tab::Transactions,
         Tab::Rpc,
         Tab::Wallet,
+        Tab::Transactions,
     ];
 
     pub fn title(self) -> &'static str {
@@ -35,9 +35,9 @@ impl Tab {
             Tab::Mempool => "Mempool",
             Tab::Network => "Network",
             Tab::Peers => "Peers",
-            Tab::Transactions => "Transactions",
             Tab::Rpc => "RPC",
             Tab::Wallet => "Wallet",
+            Tab::Transactions => "Transactions",
         }
     }
 
@@ -46,22 +46,22 @@ impl Tab {
             Tab::Dashboard => Tab::Mempool,
             Tab::Mempool => Tab::Network,
             Tab::Network => Tab::Peers,
-            Tab::Peers => Tab::Transactions,
-            Tab::Transactions => Tab::Rpc,
+            Tab::Peers => Tab::Rpc,
             Tab::Rpc => Tab::Wallet,
-            Tab::Wallet => Tab::Dashboard,
+            Tab::Wallet => Tab::Transactions,
+            Tab::Transactions => Tab::Dashboard,
         }
     }
 
     pub fn prev(self) -> Tab {
         match self {
-            Tab::Dashboard => Tab::Wallet,
+            Tab::Dashboard => Tab::Transactions,
             Tab::Mempool => Tab::Dashboard,
             Tab::Network => Tab::Mempool,
             Tab::Peers => Tab::Network,
-            Tab::Transactions => Tab::Peers,
-            Tab::Rpc => Tab::Transactions,
+            Tab::Rpc => Tab::Peers,
             Tab::Wallet => Tab::Rpc,
+            Tab::Transactions => Tab::Wallet,
         }
     }
 }
