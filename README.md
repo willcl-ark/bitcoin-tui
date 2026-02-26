@@ -107,8 +107,22 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 |-----|--------|
 | `j` / `k` / `↑` / `↓` | Move selection |
 | `Enter` | Show selected peer's full `getpeerinfo` JSON |
+| `:` | Open peer query prompt |
 | `v` | Toggle peer identity column between address and user agent |
 | `Esc` | Close peer details popup, or return to tab bar |
+
+Peers query prompt commands:
+
+- `where <field> <op> <value> [and ...]`
+- `sort <field> [asc|desc]`
+- `clear`, `clear where`, `clear sort`
+- Operators: `==`, `!=`, `>`, `>=`, `<`, `<=`, `~=`
+- Nested fields use dot notation, e.g. `bytessent_per_msg.addrv2`
+
+Examples:
+
+- `where version == 70016 and subver ~= "Satoshi"`
+- `sort bytessent_per_msg.addrv2 desc`
 
 #### Transactions tab
 

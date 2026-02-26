@@ -42,6 +42,93 @@ pub enum Op {
     Contains,
 }
 
+pub fn apply_command(query: &mut PeerQuery, input: &str) -> Result<(), String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    if lower == "clear" {
+        *query = PeerQuery::default();
+        return Ok(());
+    }
+
+    if lower == "clear where" {
+        query.filters.clear();
+        return Ok(());
+    }
+
+    if lower == "clear sort" {
+        query.sort = None;
+        return Ok(());
+    }
+
+    if lower.starts_with("where ") || lower == "where" {
+        let body = trimmed.get(5..).unwrap_or_default().trim();
+        if body.is_empty() {
+            query.filters.clear();
+            return Ok(());
+        }
+
+        let clauses = split_and_clauses(body);
+        let mut filters = Vec::with_capacity(clauses.len());
+        for clause in clauses {
+            filters.push(parse_condition(&clause)?);
+        }
+        query.filters = filters;
+        return Ok(());
+    }
+
+    if lower.starts_with("sort ") {
+        let body = trimmed[5..].trim();
+        if body.is_empty() {
+            return Err("sort requires a field path".to_string());
+        }
+        let parts: Vec<&str> = body.split_whitespace().collect();
+        if parts.is_empty() || parts.len() > 2 {
+            return Err("sort syntax: sort <field> [asc|desc]".to_string());
+        }
+        let descending = match parts.get(1).map(|s| s.to_ascii_lowercase()) {
+            None => false,
+            Some(dir) if dir == "asc" => false,
+            Some(dir) if dir == "desc" => true,
+            Some(_) => return Err("sort direction must be asc or desc".to_string()),
+        };
+        query.sort = Some(SortSpec {
+            field: parts[0].to_string(),
+            descending,
+        });
+        return Ok(());
+    }
+
+    Err("unknown command: use where/sort/clear".to_string())
+}
+
+pub fn summary(query: &PeerQuery) -> String {
+    if is_empty(query) {
+        return "none".to_string();
+    }
+
+    let mut parts = Vec::new();
+    if !query.filters.is_empty() {
+        let clauses: Vec<String> = query.filters.iter().map(format_condition).collect();
+        parts.push(format!("where {}", clauses.join(" and ")));
+    }
+    if let Some(sort) = &query.sort {
+        parts.push(format!(
+            "sort {} {}",
+            sort.field,
+            if sort.descending { "desc" } else { "asc" }
+        ));
+    }
+    parts.join(" | ")
+}
+
+pub fn is_empty(query: &PeerQuery) -> bool {
+    query.filters.is_empty() && query.sort.is_none()
+}
+
 pub fn apply(peers: &[PeerInfo], query: &PeerQuery) -> Vec<usize> {
     let rows: Vec<Value> = peers
         .iter()
@@ -73,6 +160,149 @@ pub fn get_path<'a>(value: &'a Value, field_path: &str) -> Option<&'a Value> {
         cur = cur.get(part)?;
     }
     Some(cur)
+}
+
+fn format_condition(c: &Condition) -> String {
+    format!(
+        "{} {} {}",
+        c.field,
+        match c.op {
+            Op::Eq => "==",
+            Op::Ne => "!=",
+            Op::Gt => ">",
+            Op::Ge => ">=",
+            Op::Lt => "<",
+            Op::Le => "<=",
+            Op::Contains => "~=",
+        },
+        format_literal(&c.value)
+    )
+}
+
+fn format_literal(v: &Literal) -> String {
+    match v {
+        Literal::Str(s) => format!("{:?}", s),
+        Literal::Num(n) => n.to_string(),
+        Literal::Bool(b) => b.to_string(),
+        Literal::Null => "null".to_string(),
+    }
+}
+
+fn split_and_clauses(input: &str) -> Vec<String> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    let mut quote: Option<char> = None;
+
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\'' || c == '"' {
+            if quote == Some(c) {
+                quote = None;
+            } else if quote.is_none() {
+                quote = Some(c);
+            }
+            i += 1;
+            continue;
+        }
+
+        if quote.is_none() && i + 4 < chars.len() {
+            let is_sep = chars[i] == ' '
+                && chars[i + 1].eq_ignore_ascii_case(&'a')
+                && chars[i + 2].eq_ignore_ascii_case(&'n')
+                && chars[i + 3].eq_ignore_ascii_case(&'d')
+                && chars[i + 4] == ' ';
+            if is_sep {
+                out.push(chars[start..i].iter().collect::<String>().trim().to_string());
+                start = i + 5;
+                i += 5;
+                continue;
+            }
+        }
+        i += 1;
+    }
+
+    out.push(chars[start..].iter().collect::<String>().trim().to_string());
+    out.into_iter().filter(|s| !s.is_empty()).collect()
+}
+
+fn parse_condition(clause: &str) -> Result<Condition, String> {
+    let candidates = ["==", "!=", ">=", "<=", "~=", ">", "<"];
+    let mut found: Option<(usize, &str)> = None;
+    for op in candidates {
+        if let Some(idx) = find_outside_quotes(clause, op) {
+            found = Some((idx, op));
+            break;
+        }
+    }
+
+    let (idx, op) =
+        found.ok_or_else(|| "where clause needs operator (== != > >= < <= ~=)".to_string())?;
+    let left = clause[..idx].trim();
+    let right = clause[idx + op.len()..].trim();
+
+    if left.is_empty() || right.is_empty() {
+        return Err("where clause must be: <field> <op> <value>".to_string());
+    }
+
+    Ok(Condition {
+        field: left.to_string(),
+        op: match op {
+            "==" => Op::Eq,
+            "!=" => Op::Ne,
+            ">" => Op::Gt,
+            ">=" => Op::Ge,
+            "<" => Op::Lt,
+            "<=" => Op::Le,
+            "~=" => Op::Contains,
+            _ => unreachable!(),
+        },
+        value: parse_literal(right),
+    })
+}
+
+fn find_outside_quotes(haystack: &str, needle: &str) -> Option<usize> {
+    let bytes = haystack.as_bytes();
+    let needle_bytes = needle.as_bytes();
+    let mut quote: Option<u8> = None;
+    let mut i = 0usize;
+
+    while i + needle_bytes.len() <= bytes.len() {
+        let b = bytes[i];
+        if b == b'\'' || b == b'"' {
+            if quote == Some(b) {
+                quote = None;
+            } else if quote.is_none() {
+                quote = Some(b);
+            }
+            i += 1;
+            continue;
+        }
+        if quote.is_none() && &bytes[i..i + needle_bytes.len()] == needle_bytes {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn parse_literal(raw: &str) -> Literal {
+    let s = raw.trim();
+    if s.len() >= 2
+        && ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
+    {
+        return Literal::Str(s[1..s.len() - 1].to_string());
+    }
+    match s.to_ascii_lowercase().as_str() {
+        "true" => Literal::Bool(true),
+        "false" => Literal::Bool(false),
+        "null" => Literal::Null,
+        _ => s
+            .parse::<f64>()
+            .map(Literal::Num)
+            .unwrap_or_else(|_| Literal::Str(s.to_string())),
+    }
 }
 
 fn matches_condition(value: &Value, cond: &Condition) -> bool {

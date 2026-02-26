@@ -96,6 +96,7 @@ pub enum InputMode {
     PsbtSaveName,
     MethodSearch,
     DetailSearch,
+    PeersQuery,
 }
 
 pub struct PollResult {
@@ -340,6 +341,8 @@ pub struct App {
     pub peers_popup: Option<String>,
     pub peers_popup_scroll: u16,
     pub peers_query: PeerQuery,
+    pub peers_query_input: String,
+    pub peers_query_error: Option<String>,
     pub peers_visible_indices: Vec<usize>,
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
@@ -373,6 +376,8 @@ impl Default for App {
             peers_popup: None,
             peers_popup_scroll: 0,
             peers_query: PeerQuery::default(),
+            peers_query_input: String::new(),
+            peers_query_error: None,
             peers_visible_indices: Vec::new(),
             recent_blocks: Vec::new(),
             last_tip: None,
@@ -773,6 +778,37 @@ impl App {
                 }
                 _ => {}
             },
+            InputMode::PeersQuery => match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.peers_query_input.clear();
+                }
+                KeyCode::Enter => {
+                    let cmd = self.peers_query_input.trim().to_string();
+                    if !cmd.is_empty() {
+                        match peers_query::apply_command(&mut self.peers_query, &cmd) {
+                            Ok(()) => {
+                                self.peers_query_error = None;
+                                self.refresh_peers_view();
+                            }
+                            Err(e) => {
+                                self.peers_query_error = Some(e);
+                            }
+                        }
+                    }
+                    self.peers_query_input.clear();
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Backspace => {
+                    self.peers_query_input.pop();
+                }
+                KeyCode::Char(c) => {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.peers_query_input.push(c);
+                    }
+                }
+                _ => {}
+            },
         }
     }
 
@@ -1062,6 +1098,10 @@ impl App {
 
         match key.code {
             KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Char(':') => {
+                self.input_mode = InputMode::PeersQuery;
+                self.peers_query_input.clear();
+            }
             KeyCode::Char('v') => {
                 self.peers_show_user_agent = !self.peers_show_user_agent;
             }

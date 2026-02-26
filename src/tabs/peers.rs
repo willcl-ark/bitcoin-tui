@@ -5,24 +5,41 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState},
 };
 
-use crate::app::App;
+use crate::app::{App, InputMode};
 use crate::format::*;
+use crate::peers_query;
 
 pub fn render(app: &App, frame: &mut Frame, area: Rect) {
+    let show_query_line = app.input_mode == InputMode::PeersQuery
+        || !peers_query::is_empty(&app.peers_query)
+        || app.peers_query_error.is_some();
+    let chunks = if show_query_line {
+        Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area)
+    } else {
+        Layout::vertical([Constraint::Min(0)]).split(area)
+    };
+    let table_area = chunks[0];
+
     let block = Block::default().borders(Borders::ALL).title("Peers");
 
     let Some(peers) = &app.peers else {
-        frame.render_widget(Paragraph::new("Loading...").block(block), area);
+        frame.render_widget(Paragraph::new("Loading...").block(block), table_area);
+        render_query_line(app, frame, chunks.get(1).copied());
         return;
     };
 
     if peers.is_empty() {
-        frame.render_widget(Paragraph::new("No peers connected").block(block), area);
+        frame.render_widget(Paragraph::new("No peers connected").block(block), table_area);
+        render_query_line(app, frame, chunks.get(1).copied());
         return;
     }
 
     if app.peers_visible_indices.is_empty() {
-        frame.render_widget(Paragraph::new("No peers match current query").block(block), area);
+        frame.render_widget(
+            Paragraph::new("No peers match current query").block(block),
+            table_area,
+        );
+        render_query_line(app, frame, chunks.get(1).copied());
         return;
     }
 
@@ -122,8 +139,9 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
 
     let mut state = TableState::default();
     state.select(Some(app.peers_selected));
-    frame.render_stateful_widget(table, area, &mut state);
+    frame.render_stateful_widget(table, table_area, &mut state);
 
+    render_query_line(app, frame, chunks.get(1).copied());
     render_peer_popup(app, frame, area);
 }
 
@@ -164,4 +182,20 @@ fn render_peer_popup(app: &App, frame: &mut Frame, area: Rect) {
             .scroll((app.peers_popup_scroll, 0)),
         popup,
     );
+}
+
+fn render_query_line(app: &App, frame: &mut Frame, area: Option<Rect>) {
+    let Some(area) = area else {
+        return;
+    };
+    let text = if app.input_mode == InputMode::PeersQuery {
+        format!(":{}", app.peers_query_input)
+    } else if let Some(err) = &app.peers_query_error {
+        format!("query error: {}", err)
+    } else if !peers_query::is_empty(&app.peers_query) {
+        format!("query: {}", peers_query::summary(&app.peers_query))
+    } else {
+        "query: none  (press : for where/sort/clear)".to_string()
+    };
+    frame.render_widget(Paragraph::new(text), area);
 }

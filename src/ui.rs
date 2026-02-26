@@ -175,6 +175,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::raw(" select  "),
                 Span::styled("Enter", hl),
                 Span::raw(" details  "),
+                Span::styled(":", hl),
+                Span::raw(" query  "),
                 Span::styled("v", hl),
                 Span::raw(" addr/agent  "),
                 Span::styled("Esc", hl),
@@ -217,6 +219,12 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
         InputMode::DetailSearch => vec![
             Span::styled("Enter", hl),
             Span::raw(" search  "),
+            Span::styled("Esc", hl),
+            Span::raw(" cancel"),
+        ],
+        InputMode::PeersQuery => vec![
+            Span::styled("Enter", hl),
+            Span::raw(" apply  "),
             Span::styled("Esc", hl),
             Span::raw(" cancel"),
         ],
