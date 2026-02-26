@@ -19,7 +19,7 @@ run:
 # Run using cargo, RPCHOST, RPCUSER and RPCPASS
 [group('run')]
 runc:
-    cargo run --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS
+    cargo run -- --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS
 
 # Build, check and clippy
 [group('check')]
