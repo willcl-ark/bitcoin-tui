@@ -71,7 +71,7 @@ fn render_output_panel(app: &App, frame: &mut Frame, area: Rect) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!("Running {}...", action_label(action)),
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         )));
     }
 
@@ -106,7 +106,7 @@ fn render_picker(app: &App, frame: &mut Frame, area: Rect) {
         .map(|(idx, entry)| {
             let prefix = if entry.is_dir { "d " } else { "f " };
             let style = if idx == app.psbt.picker_selected {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
             } else if entry.is_dir {
                 Style::default().fg(Color::Cyan)
             } else {
@@ -133,7 +133,7 @@ fn render_picker(app: &App, frame: &mut Frame, area: Rect) {
     }
     if app.input_mode == InputMode::PsbtSaveName {
         help.push(Span::raw("  "));
-        help.push(Span::styled("[editing filename]", Style::default().fg(Color::Yellow)));
+        help.push(Span::styled("[editing filename]", Style::default().fg(Color::Magenta)));
     }
 
     let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(popup);

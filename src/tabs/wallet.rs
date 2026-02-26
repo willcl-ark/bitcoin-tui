@@ -53,7 +53,7 @@ fn render_wallet_picker(app: &App, frame: &mut Frame, area: Rect) {
             };
             let style = if i == app.wallet.picker_index {
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()

@@ -79,7 +79,7 @@ fn render_method_list(
             .block(block)
             .highlight_style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("> ");
@@ -91,7 +91,7 @@ fn render_method_list(
         let search_line = Line::from(vec![
             Span::styled("/ ", Style::default().fg(Color::Cyan)),
             Span::raw(&browser.method_search),
-            Span::styled("_", Style::default().fg(Color::Yellow)),
+            Span::styled("_", Style::default().fg(Color::Magenta)),
         ]);
         frame.render_widget(Paragraph::new(search_line), rows[1]);
     } else {
@@ -99,7 +99,7 @@ fn render_method_list(
             .block(block)
             .highlight_style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("> ");
@@ -207,7 +207,7 @@ fn render_detail(
         lines.push(Line::from(vec![
             Span::styled("Args: ", style),
             Span::styled(&browser.arg_input, style),
-            Span::styled(cursor, Style::default().fg(Color::Yellow)),
+            Span::styled(cursor, Style::default().fg(Color::Magenta)),
         ]));
     }
 
@@ -278,7 +278,7 @@ fn render_detail(
             let search_line = Line::from(vec![
                 Span::styled("/ ", Style::default().fg(Color::Cyan)),
                 Span::raw(&browser.detail_search),
-                Span::styled("_", Style::default().fg(Color::Yellow)),
+                Span::styled("_", Style::default().fg(Color::Magenta)),
             ]);
             frame.render_widget(Paragraph::new(search_line), search_area);
         } else if has_matches {
@@ -307,8 +307,8 @@ fn highlight_line<'a>(line: &str, query: &str) -> Line<'a> {
         spans.push(Span::styled(
             line[start..start + query.len()].to_string(),
             Style::default()
-                .bg(Color::Yellow)
-                .fg(Color::Black)
+                .bg(Color::Magenta)
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         ));
         pos = start + query.len();

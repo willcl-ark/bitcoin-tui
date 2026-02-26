@@ -71,7 +71,7 @@ fn render_search_input(app: &App, frame: &mut Frame, area: Rect) {
     let input = if editing {
         Line::from(vec![
             Span::raw(&tx.search_input),
-            Span::styled("_", Style::default().fg(Color::Yellow)),
+            Span::styled("_", Style::default().fg(Color::Magenta)),
         ])
     } else if tx.search_input.is_empty() {
         Line::from(Span::styled("txid", Style::default().fg(Color::DarkGray)))
