@@ -100,7 +100,7 @@ fn render_blockchain(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(lines), chunks[0]);
 
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(progress_color))
+        .gauge_style(Style::default().fg(progress_color).bg(Color::DarkGray))
         .ratio(progress.min(1.0))
         .label(format!("Sync: {:.2}%", progress * 100.0));
     frame.render_widget(gauge, chunks[1]);
@@ -183,7 +183,7 @@ fn render_mempool(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(lines), chunks[0]);
 
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(mem_color))
+        .gauge_style(Style::default().fg(mem_color).bg(Color::DarkGray))
         .ratio(usage_ratio.min(1.0))
         .label(format!(
             "Memory: {} / {}",
