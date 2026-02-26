@@ -21,6 +21,11 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
+    if app.peers_visible_indices.is_empty() {
+        frame.render_widget(Paragraph::new("No peers match current query").block(block), area);
+        return;
+    }
+
     let peer_identity_header = if app.peers_show_user_agent {
         "User Agent"
     } else {
@@ -45,8 +50,10 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
             .add_modifier(Modifier::BOLD),
     );
 
-    let rows: Vec<Row> = peers
+    let rows: Vec<Row> = app
+        .peers_visible_indices
         .iter()
+        .filter_map(|&i| peers.get(i))
         .map(|p| {
             let dir = if p.inbound { "in" } else { "out" };
             let dir_color = if p.inbound { Color::Yellow } else { Color::Green };

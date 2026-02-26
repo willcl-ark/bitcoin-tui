@@ -1,5 +1,6 @@
 mod app;
 mod format;
+mod peers_query;
 mod rpc;
 mod rpc_types;
 mod tabs;

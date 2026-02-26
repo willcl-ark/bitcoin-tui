@@ -5,6 +5,7 @@ use std::time::Instant;
 use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
 
+use crate::peers_query::{self, PeerQuery};
 use crate::rpc_types::*;
 use crate::wallet_schema::{RpcMethod, load_non_wallet_methods, load_wallet_methods};
 
@@ -338,6 +339,8 @@ pub struct App {
     pub peers_selected: usize,
     pub peers_popup: Option<String>,
     pub peers_popup_scroll: u16,
+    pub peers_query: PeerQuery,
+    pub peers_visible_indices: Vec<usize>,
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
 
@@ -369,6 +372,8 @@ impl Default for App {
             peers_selected: 0,
             peers_popup: None,
             peers_popup_scroll: 0,
+            peers_query: PeerQuery::default(),
+            peers_visible_indices: Vec::new(),
             recent_blocks: Vec::new(),
             last_tip: None,
             rpc_error: None,
@@ -565,15 +570,7 @@ impl App {
         match result.peers {
             Ok(info) => {
                 self.peers = Some(info);
-                if let Some(peers) = &self.peers {
-                    if peers.is_empty() {
-                        self.peers_selected = 0;
-                        self.peers_popup = None;
-                        self.peers_popup_scroll = 0;
-                    } else {
-                        self.peers_selected = self.peers_selected.min(peers.len() - 1);
-                    }
-                }
+                self.refresh_peers_view();
             }
             Err(e) if !had_error => {
                 self.rpc_error = Some(e);
@@ -1060,7 +1057,7 @@ impl App {
             return;
         }
 
-        let len = self.peers.as_ref().map_or(0, Vec::len);
+        let len = self.peers_visible_indices.len();
         let max = len.saturating_sub(1);
 
         match key.code {
@@ -1084,11 +1081,33 @@ impl App {
                 self.peers_popup = self
                     .peers
                     .as_ref()
-                    .and_then(|peers| peers.get(self.peers_selected))
+                    .and_then(|peers| {
+                        let src_idx = self.peers_visible_indices.get(self.peers_selected)?;
+                        peers.get(*src_idx)
+                    })
                     .and_then(|peer| serde_json::to_string_pretty(peer).ok());
                 self.peers_popup_scroll = 0;
             }
             _ => {}
+        }
+    }
+
+    fn refresh_peers_view(&mut self) {
+        let Some(peers) = &self.peers else {
+            self.peers_visible_indices.clear();
+            self.peers_selected = 0;
+            self.peers_popup = None;
+            self.peers_popup_scroll = 0;
+            return;
+        };
+
+        self.peers_visible_indices = peers_query::apply(peers, &self.peers_query);
+        if self.peers_visible_indices.is_empty() {
+            self.peers_selected = 0;
+            self.peers_popup = None;
+            self.peers_popup_scroll = 0;
+        } else {
+            self.peers_selected = self.peers_selected.min(self.peers_visible_indices.len() - 1);
         }
     }
 
