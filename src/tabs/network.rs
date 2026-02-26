@@ -44,7 +44,7 @@ fn render_info(app: &App, frame: &mut Frame, area: Rect) {
     let version_num = app
         .network
         .as_ref()
-        .map(|n| fmt_number(n.version))
+        .map(|n| n.version.to_string())
         .unwrap_or_default();
 
     let lines = vec![
