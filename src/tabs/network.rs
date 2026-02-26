@@ -63,7 +63,7 @@ fn render_info(app: &App, frame: &mut Frame, area: Rect) {
         ),
         kv("User Agent", info.subversion.clone(), Color::White),
         kv("Version", version_num, Color::White),
-        kv("Protocol", fmt_number(info.protocolversion), Color::White),
+        kv("Protocol", info.protocolversion.to_string(), Color::White),
         kv("Relay Fee", fmt_sat_per_vb(info.relayfee), Color::White),
         kv("Services", info.localservicesnames.join(", "), Color::White),
     ];
