@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 
 use serde_json::Value;
 
@@ -127,6 +128,80 @@ pub fn summary(query: &PeerQuery) -> String {
 
 pub fn is_empty(query: &PeerQuery) -> bool {
     query.filters.is_empty() && query.sort.is_none()
+}
+
+pub fn known_fields(peers: &[PeerInfo]) -> Vec<String> {
+    let mut set = BTreeSet::new();
+    for peer in peers {
+        let value = serde_json::to_value(peer).unwrap_or(Value::Null);
+        collect_paths(&value, "", &mut set);
+    }
+
+    if set.is_empty() {
+        for f in [
+            "id",
+            "addr",
+            "network",
+            "subver",
+            "version",
+            "inbound",
+            "bytessent",
+            "bytesrecv",
+            "connection_type",
+            "transport_protocol_type",
+            "synced_blocks",
+        ] {
+            set.insert(f.to_string());
+        }
+    }
+
+    set.into_iter().collect()
+}
+
+pub fn completion_candidates(input: &str, fields: &[String]) -> Vec<String> {
+    let trimmed = input.trim_start();
+    let leading_ws = &input[..input.len() - trimmed.len()];
+
+    if trimmed.is_empty() {
+        return vec![
+            format!("{leading_ws}where "),
+            format!("{leading_ws}sort "),
+            format!("{leading_ws}clear"),
+        ];
+    }
+
+    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+    if parts.is_empty() {
+        return Vec::new();
+    }
+
+    let first = parts[0].to_ascii_lowercase();
+    if parts.len() == 1 && !trimmed.ends_with(' ') {
+        return keyword_prefixes(leading_ws, parts[0]);
+    }
+
+    if first == "clear" {
+        let prefix = if trimmed.ends_with(' ') {
+            ""
+        } else {
+            parts.get(1).copied().unwrap_or("")
+        };
+        return ["where", "sort"]
+            .iter()
+            .filter(|w| w.starts_with(&prefix.to_ascii_lowercase()))
+            .map(|w| format!("{leading_ws}clear {w}"))
+            .collect();
+    }
+
+    if first == "sort" {
+        return complete_sort(leading_ws, trimmed, parts, fields);
+    }
+
+    if first == "where" {
+        return complete_where(leading_ws, trimmed, fields);
+    }
+
+    Vec::new()
 }
 
 pub fn apply(peers: &[PeerInfo], query: &PeerQuery) -> Vec<usize> {
@@ -303,6 +378,152 @@ fn parse_literal(raw: &str) -> Literal {
             .map(Literal::Num)
             .unwrap_or_else(|_| Literal::Str(s.to_string())),
     }
+}
+
+fn collect_paths(value: &Value, prefix: &str, out: &mut BTreeSet<String>) {
+    match value {
+        Value::Object(map) => {
+            for (k, v) in map {
+                let path = if prefix.is_empty() {
+                    k.to_string()
+                } else {
+                    format!("{prefix}.{k}")
+                };
+                collect_paths(v, &path, out);
+            }
+        }
+        Value::Array(_) => {}
+        _ => {
+            if !prefix.is_empty() {
+                out.insert(prefix.to_string());
+            }
+        }
+    }
+}
+
+fn keyword_prefixes(leading_ws: &str, prefix: &str) -> Vec<String> {
+    let p = prefix.to_ascii_lowercase();
+    let mut out = Vec::new();
+    for kw in ["where", "sort", "clear"] {
+        if kw.starts_with(&p) {
+            out.push(format!("{leading_ws}{kw}"));
+        }
+    }
+    out
+}
+
+fn complete_sort(leading_ws: &str, trimmed: &str, parts: Vec<&str>, fields: &[String]) -> Vec<String> {
+    if parts.len() == 1 && trimmed.ends_with(' ') {
+        return fields
+            .iter()
+            .map(|f| format!("{leading_ws}sort {f}"))
+            .collect();
+    }
+
+    if parts.len() == 2 && !trimmed.ends_with(' ') {
+        let prefix = parts[1];
+        return fields
+            .iter()
+            .filter(|f| f.starts_with(prefix))
+            .map(|f| format!("{leading_ws}sort {f}"))
+            .collect();
+    }
+
+    if parts.len() == 2 && trimmed.ends_with(' ') {
+        return vec![
+            format!("{leading_ws}sort {} asc", parts[1]),
+            format!("{leading_ws}sort {} desc", parts[1]),
+        ];
+    }
+
+    if parts.len() == 3 && !trimmed.ends_with(' ') {
+        let prefix = parts[2].to_ascii_lowercase();
+        return ["asc", "desc"]
+            .iter()
+            .filter(|d| d.starts_with(&prefix))
+            .map(|d| format!("{leading_ws}sort {} {d}", parts[1]))
+            .collect();
+    }
+
+    Vec::new()
+}
+
+fn complete_where(leading_ws: &str, trimmed: &str, fields: &[String]) -> Vec<String> {
+    let body = trimmed.strip_prefix("where").unwrap_or("").trim_start();
+    if body.is_empty() {
+        return fields
+            .iter()
+            .map(|f| format!("{leading_ws}where {f}"))
+            .collect();
+    }
+
+    let clauses = split_and_clauses(body);
+    let current = clauses.last().cloned().unwrap_or_default();
+    let current = current.trim();
+
+    let ops = ["==", "!=", ">=", "<=", "~=", ">", "<"];
+    let mut found_op: Option<(usize, &str)> = None;
+    for op in ops {
+        if let Some(idx) = find_outside_quotes(current, op) {
+            found_op = Some((idx, op));
+            break;
+        }
+    }
+
+    let prefix = if clauses.len() > 1 {
+        format!("where {} and ", clauses[..clauses.len() - 1].join(" and "))
+    } else {
+        "where ".to_string()
+    };
+
+    if let Some((idx, op)) = found_op {
+        let left = current[..idx].trim();
+        let right = current[idx + op.len()..].trim();
+        if right.is_empty() {
+            return default_values_for_field(left)
+                .into_iter()
+                .map(|v| format!("{leading_ws}{prefix}{left} {op} {v}"))
+                .collect();
+        }
+        if !trimmed.ends_with(' ') {
+            return Vec::new();
+        }
+        return vec![format!("{leading_ws}{prefix}{left} {op} {right} and ")];
+    }
+
+    let partial = current;
+    if partial.ends_with('!') {
+        return vec![format!("{leading_ws}{prefix}{}=", partial)];
+    }
+    if partial.ends_with('>') {
+        return vec![
+            format!("{leading_ws}{prefix}{}=", partial),
+            format!("{leading_ws}{prefix}{} ", partial),
+        ];
+    }
+    if partial.ends_with('<') {
+        return vec![
+            format!("{leading_ws}{prefix}{}=", partial),
+            format!("{leading_ws}{prefix}{} ", partial),
+        ];
+    }
+    if partial.ends_with('~') {
+        return vec![format!("{leading_ws}{prefix}{}=", partial)];
+    }
+
+    fields
+        .iter()
+        .filter(|f| f.starts_with(partial))
+        .map(|f| format!("{leading_ws}{prefix}{f}"))
+        .collect()
+}
+
+fn default_values_for_field(field: &str) -> Vec<String> {
+    let lower = field.to_ascii_lowercase();
+    if lower.contains("inbound") {
+        return vec!["true".to_string(), "false".to_string()];
+    }
+    vec!["\"\"".to_string(), "0".to_string(), "null".to_string()]
 }
 
 fn matches_condition(value: &Value, cond: &Condition) -> bool {

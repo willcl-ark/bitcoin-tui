@@ -343,6 +343,9 @@ pub struct App {
     pub peers_query: PeerQuery,
     pub peers_query_input: String,
     pub peers_query_error: Option<String>,
+    pub peers_query_completion_base: Option<String>,
+    pub peers_query_completions: Vec<String>,
+    pub peers_query_completion_index: usize,
     pub peers_visible_indices: Vec<usize>,
     pub recent_blocks: Vec<BlockStats>,
     pub last_tip: Option<String>,
@@ -378,6 +381,9 @@ impl Default for App {
             peers_query: PeerQuery::default(),
             peers_query_input: String::new(),
             peers_query_error: None,
+            peers_query_completion_base: None,
+            peers_query_completions: Vec::new(),
+            peers_query_completion_index: 0,
             peers_visible_indices: Vec::new(),
             recent_blocks: Vec::new(),
             last_tip: None,
@@ -782,6 +788,7 @@ impl App {
                 KeyCode::Esc => {
                     self.input_mode = InputMode::Normal;
                     self.peers_query_input.clear();
+                    self.clear_peers_query_completion();
                 }
                 KeyCode::Enter => {
                     let cmd = self.peers_query_input.trim().to_string();
@@ -797,14 +804,20 @@ impl App {
                         }
                     }
                     self.peers_query_input.clear();
+                    self.clear_peers_query_completion();
                     self.input_mode = InputMode::Normal;
                 }
                 KeyCode::Backspace => {
                     self.peers_query_input.pop();
+                    self.clear_peers_query_completion();
+                }
+                KeyCode::Tab => {
+                    self.apply_peers_query_completion();
                 }
                 KeyCode::Char(c) => {
                     if !key.modifiers.contains(KeyModifiers::CONTROL) {
                         self.peers_query_input.push(c);
+                        self.clear_peers_query_completion();
                     }
                 }
                 _ => {}
@@ -1101,6 +1114,7 @@ impl App {
             KeyCode::Char(':') => {
                 self.input_mode = InputMode::PeersQuery;
                 self.peers_query_input.clear();
+                self.clear_peers_query_completion();
             }
             KeyCode::Char('v') => {
                 self.peers_show_user_agent = !self.peers_show_user_agent;
@@ -1148,6 +1162,41 @@ impl App {
             self.peers_popup_scroll = 0;
         } else {
             self.peers_selected = self.peers_selected.min(self.peers_visible_indices.len() - 1);
+        }
+    }
+
+    fn clear_peers_query_completion(&mut self) {
+        self.peers_query_completion_base = None;
+        self.peers_query_completions.clear();
+        self.peers_query_completion_index = 0;
+    }
+
+    fn apply_peers_query_completion(&mut self) {
+        let base = self
+            .peers_query_completion_base
+            .clone()
+            .unwrap_or_else(|| self.peers_query_input.clone());
+        let same_base = self.peers_query_completion_base.as_deref() == Some(base.as_str());
+
+        if !same_base || self.peers_query_completions.is_empty() {
+            let fields = self
+                .peers
+                .as_deref()
+                .map(peers_query::known_fields)
+                .unwrap_or_default();
+            self.peers_query_completions = peers_query::completion_candidates(&base, &fields);
+            self.peers_query_completion_base = Some(base.clone());
+            self.peers_query_completion_index = 0;
+        } else {
+            self.peers_query_completion_index =
+                (self.peers_query_completion_index + 1) % self.peers_query_completions.len();
+        }
+
+        if let Some(next) = self
+            .peers_query_completions
+            .get(self.peers_query_completion_index)
+        {
+            self.peers_query_input = next.clone();
         }
     }
 

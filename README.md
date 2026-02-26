@@ -118,6 +118,7 @@ Peers query prompt commands:
 - `clear`, `clear where`, `clear sort`
 - Operators: `==`, `!=`, `>`, `>=`, `<`, `<=`, `~=`
 - Nested fields use dot notation, e.g. `bytessent_per_msg.addrv2`
+- `Tab` completes commands/fields/operators/values, and cycles options
 
 Examples:
 

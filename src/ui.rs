@@ -223,6 +223,8 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
             Span::raw(" cancel"),
         ],
         InputMode::PeersQuery => vec![
+            Span::styled("Tab", hl),
+            Span::raw(" complete  "),
             Span::styled("Enter", hl),
             Span::raw(" apply  "),
             Span::styled("Esc", hl),
