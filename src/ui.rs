@@ -48,6 +48,7 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
         Tab::Network => crate::tabs::network::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
         Tab::Transactions => crate::tabs::transactions::render(app, frame, area),
+        Tab::Zmq => crate::tabs::zmq::render(app, frame, area),
         Tab::Rpc => crate::tabs::rpc::render(app, frame, area),
         Tab::Wallet => crate::tabs::wallet::render(app, frame, area),
     }
@@ -72,7 +73,9 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                 Span::styled("W", hl),
                 Span::raw("allet "),
                 Span::styled("T", hl),
-                Span::raw("ransactions  "),
+                Span::raw("ransactions "),
+                Span::styled("Z", hl),
+                Span::raw("MQ  "),
                 Span::styled("q", hl),
                 Span::raw(" quit"),
             ],
@@ -123,6 +126,16 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
                     }
                 }
             }
+            Focus::Content if app.tab == Tab::Zmq => vec![
+                Span::styled("j/k", hl),
+                Span::raw(" scroll  "),
+                Span::styled("C-u/d", hl),
+                Span::raw(" page  "),
+                Span::styled("G", hl),
+                Span::raw(" bottom  "),
+                Span::styled("Esc", hl),
+                Span::raw(" back"),
+            ],
             Focus::Content if app.tab == Tab::Transactions => vec![
                 Span::styled("/", hl),
                 Span::raw(" search  "),

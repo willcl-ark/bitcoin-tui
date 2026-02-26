@@ -16,7 +16,7 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-use app::{App, Event, PollResult, SearchResult};
+use app::{App, Event, PollResult, SearchResult, ZmqEntry};
 use rpc::RpcClient;
 
 #[derive(Parser)]
@@ -51,6 +51,12 @@ struct Args {
 
     #[arg(long, default_value_t = 5)]
     interval: u64,
+
+    #[arg(long, default_value = "127.0.0.1")]
+    zmqhost: String,
+
+    #[arg(long)]
+    zmqport: Option<u16>,
 }
 
 impl Args {
@@ -105,8 +111,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.rpcpassword.as_deref(),
     ));
 
+    let zmq_addr = args
+        .zmqport
+        .map(|port| format!("tcp://{}:{}", args.zmqhost, port));
+
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, rpc, args.interval).await;
+    let result = run(&mut terminal, rpc, args.interval, zmq_addr).await;
     ratatui::restore();
     result
 }
@@ -115,6 +125,7 @@ async fn run(
     terminal: &mut ratatui::DefaultTerminal,
     rpc: Arc<RpcClient>,
     poll_interval: u64,
+    zmq_addr: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App::default();
     let mut reader = EventStream::new();
@@ -123,6 +134,11 @@ async fn run(
     let (tx, mut rx) = mpsc::unbounded_channel::<Event>();
 
     spawn_polling(rpc.clone(), tx.clone(), poll_interval);
+
+    if let Some(addr) = zmq_addr {
+        app.zmq.enabled = true;
+        spawn_zmq(addr, tx.clone());
+    }
 
     loop {
         terminal.draw(|frame| ui::render(&app, frame))?;
@@ -274,6 +290,45 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
             }
 
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+        }
+    });
+}
+
+fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
+    use zeromq::{Socket, SocketRecv, SubSocket, ZmqMessage};
+
+    tokio::spawn(async move {
+        let mut socket = SubSocket::new();
+        if socket.connect(&addr).await.is_err() {
+            return;
+        }
+        let _ = socket.subscribe("hashtx").await;
+        let _ = socket.subscribe("hashblock").await;
+
+        loop {
+            let msg: ZmqMessage = match socket.recv().await {
+                Ok(msg) => msg,
+                Err(_) => break,
+            };
+            let frames: Vec<_> = msg.into_vec();
+            if frames.len() < 2 {
+                continue;
+            }
+            let topic = String::from_utf8_lossy(&frames[0]).to_string();
+            let hash_bytes = &frames[1];
+            let mut reversed = hash_bytes.to_vec();
+            reversed.reverse();
+            let hash = reversed
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>();
+
+            if tx
+                .send(Event::ZmqMessage(Box::new(ZmqEntry { topic, hash })))
+                .is_err()
+            {
+                break;
+            }
         }
     });
 }

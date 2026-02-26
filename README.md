@@ -15,6 +15,7 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **RPC** — browse non-wallet RPC methods (blockchain, mempool, mining, network, util, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse wallet and rawtransactions RPC methods with inline help, type arguments, execute calls, and view results
 - **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
+- **ZMQ** — live stream of `hashtx` and `hashblock` notifications from Bitcoin Core's ZMQ interface (requires `--zmqport`)
 
 ### RPC explorer
 
@@ -67,6 +68,8 @@ By default connects to `127.0.0.1:8332` using cookie auth from `~/.bitcoin/.cook
 | `--rpcuser <USER>` | RPC username |
 | `--rpcpassword <PASS>` | RPC password |
 | `--interval <SECS>` | Polling interval in seconds (default: `5`) |
+| `--zmqhost <HOST>` | ZMQ host (default: `127.0.0.1`) |
+| `--zmqport <PORT>` | ZMQ port (enables ZMQ tab) |
 
 ### Network selection
 
@@ -87,7 +90,7 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | Key | Action |
 |-----|--------|
 | `h` / `l` / `←` / `→` | Switch tab |
-| `d/m/n/p/r/w/t` | Jump to tab by first letter |
+| `d/m/n/p/r/w/t/z` | Jump to tab by first letter |
 | `Enter` | Enter tab content (Transactions: opens search) |
 | `q` / `Esc` | Quit |
 
@@ -104,6 +107,15 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | `/` | Search for a transaction by txid |
 | `j` / `k` / `↑` / `↓` | Scroll results |
 | `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `Esc` | Return to tab bar |
+
+#### ZMQ tab
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Scroll |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `G` | Jump to bottom (re-enable auto-scroll) |
 | `Esc` | Return to tab bar |
 
 #### RPC / Wallet — methods pane
@@ -151,6 +163,9 @@ bitcoin-tui --rpcuser alice --rpcpassword secret --port 18443
 
 # Faster polling
 bitcoin-tui --interval 2
+
+# With ZMQ notifications
+bitcoin-tui --zmqport 28332
 ```
 
 ## License

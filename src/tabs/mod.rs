@@ -6,3 +6,4 @@ pub mod peers;
 pub mod rpc;
 pub mod transactions;
 pub mod wallet;
+pub mod zmq;

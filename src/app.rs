@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::time::Instant;
 
 use crossterm::event::KeyEvent;
@@ -14,12 +15,13 @@ pub enum Tab {
     Network,
     Peers,
     Transactions,
+    Zmq,
     Rpc,
     Wallet,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 7] = [
+    pub const ALL: [Tab; 8] = [
         Tab::Dashboard,
         Tab::Mempool,
         Tab::Network,
@@ -27,6 +29,7 @@ impl Tab {
         Tab::Rpc,
         Tab::Wallet,
         Tab::Transactions,
+        Tab::Zmq,
     ];
 
     pub fn title(self) -> &'static str {
@@ -38,6 +41,7 @@ impl Tab {
             Tab::Rpc => "RPC",
             Tab::Wallet => "Wallet",
             Tab::Transactions => "Transactions",
+            Tab::Zmq => "ZMQ",
         }
     }
 
@@ -49,19 +53,21 @@ impl Tab {
             Tab::Peers => Tab::Rpc,
             Tab::Rpc => Tab::Wallet,
             Tab::Wallet => Tab::Transactions,
-            Tab::Transactions => Tab::Dashboard,
+            Tab::Transactions => Tab::Zmq,
+            Tab::Zmq => Tab::Dashboard,
         }
     }
 
     pub fn prev(self) -> Tab {
         match self {
-            Tab::Dashboard => Tab::Transactions,
+            Tab::Dashboard => Tab::Zmq,
             Tab::Mempool => Tab::Dashboard,
             Tab::Network => Tab::Mempool,
             Tab::Peers => Tab::Network,
             Tab::Rpc => Tab::Peers,
             Tab::Wallet => Tab::Rpc,
             Tab::Transactions => Tab::Wallet,
+            Tab::Zmq => Tab::Transactions,
         }
     }
 }
@@ -98,6 +104,11 @@ pub enum SearchResult {
     Confirmed { txid: String, tx: RawTransaction },
 }
 
+pub struct ZmqEntry {
+    pub topic: String,
+    pub hash: String,
+}
+
 pub enum Event {
     Key(KeyEvent),
     Tick,
@@ -106,6 +117,7 @@ pub enum Event {
     WalletRpcComplete(Box<Result<String, String>>),
     RpcComplete(Box<Result<String, String>>),
     WalletListComplete(Box<Result<Vec<String>, String>>),
+    ZmqMessage(Box<ZmqEntry>),
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -211,6 +223,24 @@ pub struct TransactionsTab {
     pub result_scroll: u16,
 }
 
+pub struct ZmqTab {
+    pub entries: VecDeque<ZmqEntry>,
+    pub scroll: u16,
+    pub auto_scroll: bool,
+    pub enabled: bool,
+}
+
+impl Default for ZmqTab {
+    fn default() -> Self {
+        ZmqTab {
+            entries: VecDeque::new(),
+            scroll: 0,
+            auto_scroll: true,
+            enabled: false,
+        }
+    }
+}
+
 pub struct WalletTab {
     pub browser: MethodBrowser,
     pub wallet_name: String,
@@ -238,6 +268,7 @@ pub struct App {
     pub refreshing: bool,
 
     pub transactions: TransactionsTab,
+    pub zmq: ZmqTab,
     pub wallet: WalletTab,
     pub rpc: MethodBrowser,
 }
@@ -260,6 +291,7 @@ impl Default for App {
             last_update: None,
             refreshing: false,
             transactions: TransactionsTab::default(),
+            zmq: ZmqTab::default(),
             wallet: WalletTab {
                 browser: MethodBrowser::new(load_wallet_methods()),
                 wallet_name: String::new(),
@@ -330,6 +362,16 @@ impl App {
                         self.wallet.browser.result = None;
                         self.wallet.browser.error = Some(e);
                     }
+                }
+            }
+            Event::ZmqMessage(entry) => {
+                const MAX_ENTRIES: usize = 2000;
+                self.zmq.entries.push_back(*entry);
+                if self.zmq.entries.len() > MAX_ENTRIES {
+                    self.zmq.entries.pop_front();
+                }
+                if self.zmq.auto_scroll {
+                    self.zmq.scroll = self.zmq.entries.len().saturating_sub(1) as u16;
                 }
             }
             Event::RpcComplete(result) => {
@@ -428,11 +470,13 @@ impl App {
                     KeyCode::Char('r') => self.enter_tab(Tab::Rpc),
                     KeyCode::Char('w') => self.enter_tab(Tab::Wallet),
                     KeyCode::Char('t') => self.enter_tab(Tab::Transactions),
+                    KeyCode::Char('z') => self.enter_tab(Tab::Zmq),
                     _ => {}
                 },
                 Focus::Content => match self.tab {
                     Tab::Wallet | Tab::Rpc => self.handle_browser_content(key),
                     Tab::Transactions => self.handle_transactions_content(key),
+                    Tab::Zmq => self.handle_zmq_content(key),
                     _ => {
                         if key.code == KeyCode::Esc {
                             self.focus = Focus::TabBar;
@@ -586,6 +630,35 @@ impl App {
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.transactions.result_scroll =
                     self.transactions.result_scroll.saturating_sub(20);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_zmq_content(&mut self, key: KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers};
+
+        match key.code {
+            KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.zmq.scroll = self.zmq.scroll.saturating_add(1);
+                self.zmq.auto_scroll = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.zmq.scroll = self.zmq.scroll.saturating_sub(1);
+                self.zmq.auto_scroll = false;
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.zmq.scroll = self.zmq.scroll.saturating_add(20);
+                self.zmq.auto_scroll = false;
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.zmq.scroll = self.zmq.scroll.saturating_sub(20);
+                self.zmq.auto_scroll = false;
+            }
+            KeyCode::Char('G') => {
+                self.zmq.scroll = self.zmq.entries.len().saturating_sub(1) as u16;
+                self.zmq.auto_scroll = true;
             }
             _ => {}
         }
