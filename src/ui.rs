@@ -40,6 +40,7 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
     match app.tab {
         Tab::Dashboard => crate::tabs::dashboard::render(app, frame, area),
+        Tab::Mempool => crate::tabs::mempool::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
         _ => {
             let block = Block::default()
