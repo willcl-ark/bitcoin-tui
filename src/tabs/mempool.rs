@@ -84,9 +84,9 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
         .iter()
         .map(|b| {
             let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0) as u64;
-            let color = if pct < 70 {
+            let color = if pct >= 75 {
                 Color::Green
-            } else if pct < 90 {
+            } else if pct >= 50 {
                 Color::Yellow
             } else {
                 Color::Red
