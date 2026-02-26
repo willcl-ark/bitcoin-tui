@@ -1,6 +1,4 @@
 .direnv/
-
-
-# Added by cargo
-
+CLAUDE.md
+/result
 /target
