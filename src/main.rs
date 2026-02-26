@@ -296,6 +296,8 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
     tokio::spawn(async move {
         const RECENT_BLOCK_HISTORY: u64 = 72;
         let mut last_tip: Option<String> = None;
+        let mut last_height: Option<u64> = None;
+        let mut cached_recent_blocks: Vec<crate::rpc_types::BlockStats> = Vec::new();
         loop {
             tracing::debug!("rpc poll starting");
             let (blockchain, network, mempool, mining, peers) = tokio::join!(
@@ -312,22 +314,14 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 (Ok(_), None) => true,
                 _ => false,
             };
-
-            if tip_changed && let Ok(ref info) = blockchain {
-                last_tip = Some(info.bestblockhash.clone());
-                let height = info.blocks;
-                let rpc = rpc.clone();
-                let tx_recent = tx.clone();
-                tokio::spawn(async move {
-                    let mut blocks = Vec::new();
-                    for h in height.saturating_sub(RECENT_BLOCK_HISTORY - 1)..=height {
-                        if let Ok(stats) = rpc.get_block_stats(h).await {
-                            blocks.push(stats);
-                        }
-                    }
-                    let _ = tx_recent.send(Event::RecentBlocksComplete(Box::new(blocks)));
-                });
-            }
+            let tip_info = if tip_changed {
+                blockchain
+                    .as_ref()
+                    .ok()
+                    .map(|info| (info.bestblockhash.clone(), info.blocks))
+            } else {
+                None
+            };
 
             let result = PollResult {
                 blockchain,
@@ -340,6 +334,41 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
 
             if tx.send(Event::PollComplete(Box::new(result))).is_err() {
                 break;
+            }
+
+            if let Some((tip_hash, height)) = tip_info {
+                    let mut updated = cached_recent_blocks.clone();
+                    let mut start_height = height.saturating_sub(RECENT_BLOCK_HISTORY - 1);
+
+                    if let Some(prev_height) = last_height {
+                        let delta = height.saturating_sub(prev_height);
+                        if height > prev_height && delta <= RECENT_BLOCK_HISTORY {
+                            start_height = prev_height + 1;
+                        } else {
+                            updated.clear();
+                        }
+                    } else {
+                        updated.clear();
+                    }
+
+                    for h in start_height..=height {
+                        if let Ok(stats) = rpc.get_block_stats(h).await {
+                            updated.push(stats);
+                        }
+                    }
+
+                    if updated.len() > RECENT_BLOCK_HISTORY as usize {
+                        let keep_from = updated.len() - RECENT_BLOCK_HISTORY as usize;
+                        updated.drain(0..keep_from);
+                    }
+
+                    if !updated.is_empty() {
+                        cached_recent_blocks = updated.clone();
+                        let _ = tx.send(Event::RecentBlocksComplete(Box::new(updated)));
+                    }
+
+                    last_tip = Some(tip_hash);
+                    last_height = Some(height);
             }
 
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
