@@ -313,23 +313,21 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 _ => false,
             };
 
-            let recent_blocks = if tip_changed {
-                if let Ok(ref info) = blockchain {
-                    last_tip = Some(info.bestblockhash.clone());
-                    let height = info.blocks;
+            if tip_changed && let Ok(ref info) = blockchain {
+                last_tip = Some(info.bestblockhash.clone());
+                let height = info.blocks;
+                let rpc = rpc.clone();
+                let tx_recent = tx.clone();
+                tokio::spawn(async move {
                     let mut blocks = Vec::new();
                     for h in height.saturating_sub(RECENT_BLOCK_HISTORY - 1)..=height {
                         if let Ok(stats) = rpc.get_block_stats(h).await {
                             blocks.push(stats);
                         }
                     }
-                    Some(blocks)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+                    let _ = tx_recent.send(Event::RecentBlocksComplete(Box::new(blocks)));
+                });
+            }
 
             let result = PollResult {
                 blockchain,
@@ -337,7 +335,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 mempool,
                 mining,
                 peers,
-                recent_blocks,
+                recent_blocks: None,
             };
 
             if tx.send(Event::PollComplete(Box::new(result))).is_err() {

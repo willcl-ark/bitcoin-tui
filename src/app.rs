@@ -128,6 +128,7 @@ pub enum Event {
     Key(KeyEvent),
     Tick,
     PollComplete(Box<PollResult>),
+    RecentBlocksComplete(Box<Vec<BlockStats>>),
     SearchComplete(Box<Result<SearchResult, String>>),
     WalletRpcComplete(Box<Result<String, String>>),
     RpcComplete(Box<Result<String, String>>),
@@ -395,6 +396,9 @@ impl App {
             Event::Key(key) => self.handle_key(key),
             Event::Tick => {}
             Event::PollComplete(result) => self.handle_poll(*result),
+            Event::RecentBlocksComplete(blocks) => {
+                self.recent_blocks = *blocks;
+            }
             Event::SearchComplete(result) => {
                 self.transactions.searching = false;
                 match *result {
