@@ -12,17 +12,17 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
 - **Network** — connection details, per-network reachability, local addresses
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
-- **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
-- **RPC** — browse all non-wallet RPC methods (blockchain, mempool, mining, network, etc.) with inline help, type arguments, execute calls, and view results
+- **RPC** — browse non-wallet RPC methods (blockchain, mempool, mining, network, util, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse wallet and rawtransactions RPC methods with inline help, type arguments, execute calls, and view results
+- **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
 
 ### RPC explorer
 
-The RPC tab lists every non-wallet RPC method from the Bitcoin Core API (blockchain, mempool, mining, network, rawtransactions, etc.). Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input. These calls go directly to the node without any wallet context.
+The RPC tab lists non-wallet RPC methods from the Bitcoin Core API (blockchain, mempool, mining, network, util, etc.). Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input. These calls go directly to the node without any wallet context.
 
 ### Wallet RPC explorer
 
-The Wallet tab lists every wallet RPC method from the Bitcoin Core API. Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input where you type positional JSON args (e.g. `"*", 6`).
+The Wallet tab lists wallet and rawtransactions RPC methods from the Bitcoin Core API. Select a method to see its description and parameter documentation. Press `Enter` to call it — methods with no parameters execute immediately, methods with parameters open an argument input where you type positional JSON args (e.g. `"*", 6`).
 
 Press `w` to open the wallet selector, which queries `listwallets` from your node and lets you pick which wallet to target. The selected wallet name appears in the method list header and is used for all subsequent calls via the `/wallet/<name>` RPC endpoint.
 
@@ -87,7 +87,8 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | Key | Action |
 |-----|--------|
 | `h` / `l` / `←` / `→` | Switch tab |
-| `Enter` | Enter tab content |
+| `d/m/n/p/r/w/t` | Jump to tab by first letter |
+| `Enter` | Enter tab content (Transactions: opens search) |
 | `q` / `Esc` | Quit |
 
 #### Content mode
