@@ -21,7 +21,9 @@ pub fn render(app: &App, frame: &mut Frame) {
     render_content(app, frame, chunks[1]);
     render_footer(app, frame, chunks[2]);
 
-    if let Some(result) = &app.search_result {
+    if app.input_mode == InputMode::Search {
+        render_search_input(app, frame, frame.area());
+    } else if let Some(result) = &app.search_result {
         render_search_overlay(result, frame, frame.area());
     } else if let Some(err) = &app.search_error {
         render_error_overlay(err, frame, frame.area());
@@ -31,13 +33,6 @@ pub fn render(app: &App, frame: &mut Frame) {
 }
 
 fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
-    let (tab_area, search_area) = if app.input_mode == InputMode::Search {
-        let cols = Layout::horizontal([Constraint::Min(30), Constraint::Length(40)]).split(area);
-        (cols[0], Some(cols[1]))
-    } else {
-        (area, None)
-    };
-
     let titles: Vec<Line> = Tab::ALL.iter().map(|t| Line::from(t.title())).collect();
     let selected = Tab::ALL.iter().position(|t| *t == app.tab).unwrap_or(0);
 
@@ -54,15 +49,7 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
         .highlight_style(highlight)
         .divider("│");
 
-    frame.render_widget(tabs, tab_area);
-
-    if let Some(area) = search_area {
-        let input = format!("/ {}_", app.search_input);
-        frame.render_widget(
-            Paragraph::new(input).style(Style::default().fg(Color::Cyan)),
-            area,
-        );
-    }
+    frame.render_widget(tabs, area);
 }
 
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
@@ -197,6 +184,28 @@ fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     Layout::horizontal([Constraint::Length(width)])
         .flex(Flex::Center)
         .split(vertical[0])[0]
+}
+
+fn render_search_input(app: &App, frame: &mut Frame, area: Rect) {
+    let popup = centered_rect(50, 3, area);
+    frame.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Search Transaction")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let input = Line::from(vec![
+        Span::raw(&app.search_input),
+        Span::styled("_", Style::default().fg(Color::Yellow)),
+    ]);
+
+    frame.render_widget(
+        Paragraph::new(input)
+            .style(Style::default().fg(Color::White))
+            .block(block),
+        popup,
+    );
 }
 
 fn render_search_overlay(result: &SearchResult, frame: &mut Frame, area: Rect) {
