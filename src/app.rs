@@ -410,7 +410,13 @@ impl App {
                 Focus::TabBar => match key.code {
                     KeyCode::Right | KeyCode::Char('l') => self.tab = self.tab.next(),
                     KeyCode::Left | KeyCode::Char('h') => self.tab = self.tab.prev(),
-                    KeyCode::Enter => self.focus = Focus::Content,
+                    KeyCode::Enter => {
+                        self.focus = Focus::Content;
+                        if self.tab == Tab::Transactions {
+                            self.input_mode = InputMode::TxSearch;
+                            self.transactions.search_input.clear();
+                        }
+                    }
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
                     KeyCode::Char('d') => self.tab = Tab::Dashboard,
                     KeyCode::Char('m') => self.tab = Tab::Mempool,
