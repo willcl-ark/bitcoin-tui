@@ -155,7 +155,7 @@ fn render_chain_details(app: &App, frame: &mut Frame, area: Rect) {
             "IBD",
             if info.initialblockdownload { "yes" } else { "no" },
             if info.initialblockdownload {
-                Color::Red
+                Color::Yellow
             } else {
                 Color::Green
             },
