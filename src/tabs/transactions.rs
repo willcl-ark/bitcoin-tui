@@ -104,7 +104,7 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
                 ),
-                kv("TXID", fmt_abbreviated_hash(txid), Style::default()),
+                kv("TXID", txid.clone(), Style::default()),
                 kv("Fee", fmt_btc(entry.fees.base.as_f64()), Style::default()),
                 kv("Fee Rate", &fee_rate, Style::default()),
                 kv("vSize", fmt_number(entry.vsize), Style::default()),
@@ -131,7 +131,7 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
                 ),
-                kv("TXID", fmt_abbreviated_hash(txid), Style::default()),
+                kv("TXID", txid.clone(), Style::default()),
                 kv(
                     "Confs",
                     tx.confirmations
