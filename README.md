@@ -15,7 +15,7 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **RPC** — browse non-wallet RPC methods (blockchain, mempool, mining, network, util, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse wallet and rawtransactions RPC methods with inline help, type arguments, execute calls, and view results
 - **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
-- **ZMQ** — live stream of `hashtx` and `hashblock` notifications from Bitcoin Core's ZMQ interface (requires `--zmqport`)
+- **ZMQ** — live stream of `hashtx` and `hashblock` notifications from Bitcoin Core's ZMQ interface; select a `hashtx` entry and press Enter to look it up in the Transactions tab (requires `--zmqport`)
 
 ### RPC explorer
 
@@ -113,9 +113,10 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` / `↑` / `↓` | Scroll |
+| `j` / `k` / `↑` / `↓` | Move selection |
 | `Ctrl+d` / `Ctrl+u` | Page down / up |
-| `G` | Jump to bottom (re-enable auto-scroll) |
+| `g` / `G` | Jump to newest / oldest |
+| `Enter` | Look up selected `hashtx` in Transactions tab |
 | `Esc` | Return to tab bar |
 
 #### RPC / Wallet — methods pane

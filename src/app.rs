@@ -224,24 +224,12 @@ pub struct TransactionsTab {
     pub result_scroll: u16,
 }
 
+#[derive(Default)]
 pub struct ZmqTab {
     pub entries: VecDeque<ZmqEntry>,
-    pub scroll: u16,
-    pub auto_scroll: bool,
+    pub selected: usize,
     pub enabled: bool,
     pub error: Option<String>,
-}
-
-impl Default for ZmqTab {
-    fn default() -> Self {
-        ZmqTab {
-            entries: VecDeque::new(),
-            scroll: 0,
-            auto_scroll: true,
-            enabled: false,
-            error: None,
-        }
-    }
 }
 
 pub struct WalletTab {
@@ -370,9 +358,18 @@ impl App {
             Event::ZmqMessage(entry) => {
                 const MAX_ENTRIES: usize = 2000;
                 self.zmq.error = None;
+                let was_at_top = self.zmq.selected == 0;
                 self.zmq.entries.push_back(*entry);
                 if self.zmq.entries.len() > MAX_ENTRIES {
                     self.zmq.entries.pop_front();
+                    // Item at front was removed, adjust selected down
+                    self.zmq.selected = self.zmq.selected.saturating_sub(1);
+                }
+                if !was_at_top {
+                    // New entry pushed at end (displayed at top in reversed view),
+                    // shift selected so it stays on the same item
+                    self.zmq.selected =
+                        (self.zmq.selected + 1).min(self.zmq.entries.len().saturating_sub(1));
                 }
             }
             Event::ZmqError(err) => {
@@ -642,27 +639,45 @@ impl App {
     fn handle_zmq_content(&mut self, key: KeyEvent) {
         use crossterm::event::{KeyCode, KeyModifiers};
 
+        let len = self.zmq.entries.len();
+        if len == 0 {
+            if key.code == KeyCode::Esc {
+                self.focus = Focus::TabBar;
+            }
+            return;
+        }
+        let max = len - 1;
+
         match key.code {
             KeyCode::Esc => self.focus = Focus::TabBar,
             KeyCode::Down | KeyCode::Char('j') => {
-                self.zmq.scroll = self.zmq.scroll.saturating_add(1);
-                self.zmq.auto_scroll = false;
+                self.zmq.selected = (self.zmq.selected + 1).min(max);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.zmq.scroll = self.zmq.scroll.saturating_sub(1);
-                self.zmq.auto_scroll = false;
+                self.zmq.selected = self.zmq.selected.saturating_sub(1);
             }
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.zmq.scroll = self.zmq.scroll.saturating_add(20);
-                self.zmq.auto_scroll = false;
+                self.zmq.selected = (self.zmq.selected + 20).min(max);
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.zmq.scroll = self.zmq.scroll.saturating_sub(20);
-                self.zmq.auto_scroll = false;
+                self.zmq.selected = self.zmq.selected.saturating_sub(20);
             }
-            KeyCode::Char('G') => {
-                self.zmq.scroll = self.zmq.entries.len().saturating_sub(1) as u16;
-                self.zmq.auto_scroll = true;
+            KeyCode::Char('g') => self.zmq.selected = 0,
+            KeyCode::Char('G') => self.zmq.selected = max,
+            KeyCode::Enter => {
+                let rev_index = self.zmq.selected;
+                let fwd_index = max - rev_index;
+                let entry = &self.zmq.entries[fwd_index];
+                if entry.topic == "hashtx" {
+                    self.transactions.search_input = entry.hash.clone();
+                    self.transactions.searching = true;
+                    self.transactions.result = None;
+                    self.transactions.error = None;
+                    self.transactions.result_scroll = 0;
+                    self.tab = Tab::Transactions;
+                    self.focus = Focus::Content;
+                    self.input_mode = InputMode::Normal;
+                }
             }
             _ => {}
         }

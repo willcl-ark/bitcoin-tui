@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
 use crate::app::App;
@@ -53,7 +53,7 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
 
-    let lines: Vec<Line> = zmq
+    let items: Vec<ListItem> = zmq
         .entries
         .iter()
         .rev()
@@ -66,10 +66,10 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
             } else {
                 (Style::default().fg(Color::DarkGray), Style::default())
             };
-            Line::from(vec![
+            ListItem::new(Line::from(vec![
                 Span::styled(format!("{:<12}", e.topic), label_style),
                 Span::styled(&e.hash, hash_style),
-            ])
+            ]))
         })
         .collect();
 
@@ -78,7 +78,11 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         .title(format!("ZMQ ({})", zmq.entries.len()))
         .border_style(Style::default().fg(Color::Cyan));
 
-    let scroll = if zmq.auto_scroll { 0 } else { zmq.scroll };
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    frame.render_widget(Paragraph::new(lines).block(block).scroll((scroll, 0)), area);
+    let mut state = ListState::default();
+    state.select(Some(zmq.selected));
+    frame.render_stateful_widget(list, area, &mut state);
 }

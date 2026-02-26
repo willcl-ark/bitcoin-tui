@@ -128,11 +128,13 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
             }
             Focus::Content if app.tab == Tab::Zmq => vec![
                 Span::styled("j/k", hl),
-                Span::raw(" scroll  "),
+                Span::raw(" select  "),
                 Span::styled("C-u/d", hl),
                 Span::raw(" page  "),
-                Span::styled("G", hl),
-                Span::raw(" bottom  "),
+                Span::styled("g/G", hl),
+                Span::raw(" top/bottom  "),
+                Span::styled("Enter", hl),
+                Span::raw(" lookup tx  "),
                 Span::styled("Esc", hl),
                 Span::raw(" back"),
             ],
