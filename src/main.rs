@@ -1,6 +1,8 @@
 mod app;
+mod format;
 mod rpc;
 mod rpc_types;
+mod tabs;
 mod ui;
 
 use std::path::PathBuf;

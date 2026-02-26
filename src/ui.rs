@@ -38,10 +38,15 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
-    let title = app.tab.title();
-    let block = Block::default().borders(Borders::ALL).title(title);
-    let text = Paragraph::new("Loading...").block(block);
-    frame.render_widget(text, area);
+    match app.tab {
+        Tab::Dashboard => crate::tabs::dashboard::render(app, frame, area),
+        _ => {
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .title(app.tab.title());
+            frame.render_widget(Paragraph::new("Loading...").block(block), area);
+        }
+    }
 }
 
 fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
