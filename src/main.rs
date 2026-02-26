@@ -16,7 +16,7 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-use app::{App, Event, PollResult, SearchResult, ZmqEntry};
+use app::{App, Event, PollResult, PsbtRpcAction, PsbtRpcResult, SearchResult, ZmqEntry};
 use rpc::RpcClient;
 
 #[derive(Parser)]
@@ -240,6 +240,17 @@ async fn run(
             });
         }
 
+        if let Some(action) = app.psbt.rpc_in_flight.take() {
+            let psbt = app.psbt.psbt.trim().to_string();
+            let wallet_name = app.wallet.wallet_name.clone();
+            let rpc = rpc.clone();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let result = run_psbt_action(&rpc, action, &psbt, &wallet_name).await;
+                let _ = tx.send(Event::PsbtRpcComplete(Box::new(result)));
+            });
+        }
+
         tokio::select! {
             _ = tick.tick() => {
                 app.update(Event::Tick);
@@ -432,4 +443,49 @@ async fn decode_tx_for_display(rpc: &RpcClient, txid: &str) -> Option<String> {
             None
         }
     }
+}
+
+async fn run_psbt_action(
+    rpc: &RpcClient,
+    action: PsbtRpcAction,
+    psbt: &str,
+    wallet_name: &str,
+) -> Result<PsbtRpcResult, String> {
+    if psbt.is_empty() {
+        return Err("No PSBT loaded".to_string());
+    }
+
+    let wallet = if wallet_name.is_empty() {
+        None
+    } else {
+        Some(wallet_name)
+    };
+
+    let (method, params, wallet_ctx) = match action {
+        PsbtRpcAction::Decode => ("decodepsbt", serde_json::json!([psbt]), None),
+        PsbtRpcAction::Analyze => ("analyzepsbt", serde_json::json!([psbt]), None),
+        PsbtRpcAction::WalletProcess => (
+            "walletprocesspsbt",
+            serde_json::json!([psbt, true, "DEFAULT", true, false]),
+            wallet,
+        ),
+        PsbtRpcAction::Finalize => ("finalizepsbt", serde_json::json!([psbt, false]), None),
+        PsbtRpcAction::UtxoUpdate => ("utxoupdatepsbt", serde_json::json!([psbt]), None),
+    };
+
+    let value = rpc.call_raw(method, params, wallet_ctx).await?;
+    let output_json = serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string());
+    let updated_psbt = match action {
+        PsbtRpcAction::UtxoUpdate => value.as_str().map(str::to_string),
+        _ => value
+            .get("psbt")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+    };
+
+    Ok(PsbtRpcResult {
+        action,
+        output_json,
+        updated_psbt,
+    })
 }

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::time::Instant;
 
 use crossterm::event::KeyEvent;
@@ -14,6 +15,7 @@ pub enum Tab {
     Mempool,
     Network,
     Peers,
+    Psbt,
     Transactions,
     Zmq,
     Rpc,
@@ -21,11 +23,12 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: [Tab; 8] = [
+    pub const ALL: [Tab; 9] = [
         Tab::Dashboard,
         Tab::Mempool,
         Tab::Network,
         Tab::Peers,
+        Tab::Psbt,
         Tab::Rpc,
         Tab::Wallet,
         Tab::Transactions,
@@ -38,6 +41,7 @@ impl Tab {
             Tab::Mempool => "Mempool",
             Tab::Network => "Network",
             Tab::Peers => "Peers",
+            Tab::Psbt => "PSBT",
             Tab::Rpc => "RPC",
             Tab::Wallet => "Wallet",
             Tab::Transactions => "Transactions",
@@ -50,7 +54,8 @@ impl Tab {
             Tab::Dashboard => Tab::Mempool,
             Tab::Mempool => Tab::Network,
             Tab::Network => Tab::Peers,
-            Tab::Peers => Tab::Rpc,
+            Tab::Peers => Tab::Psbt,
+            Tab::Psbt => Tab::Rpc,
             Tab::Rpc => Tab::Wallet,
             Tab::Wallet => Tab::Transactions,
             Tab::Transactions => Tab::Zmq,
@@ -64,7 +69,8 @@ impl Tab {
             Tab::Mempool => Tab::Dashboard,
             Tab::Network => Tab::Mempool,
             Tab::Peers => Tab::Network,
-            Tab::Rpc => Tab::Peers,
+            Tab::Psbt => Tab::Peers,
+            Tab::Rpc => Tab::Psbt,
             Tab::Wallet => Tab::Rpc,
             Tab::Transactions => Tab::Wallet,
             Tab::Zmq => Tab::Transactions,
@@ -86,6 +92,7 @@ pub enum InputMode {
     TxSearch,
     ArgInput,
     WalletPicker,
+    PsbtSaveName,
     MethodSearch,
     DetailSearch,
 }
@@ -125,8 +132,24 @@ pub enum Event {
     WalletRpcComplete(Box<Result<String, String>>),
     RpcComplete(Box<Result<String, String>>),
     WalletListComplete(Box<Result<Vec<String>, String>>),
+    PsbtRpcComplete(Box<Result<PsbtRpcResult, String>>),
     ZmqMessage(Box<ZmqEntry>),
     ZmqError(String),
+}
+
+#[derive(Clone, Copy)]
+pub enum PsbtRpcAction {
+    Decode,
+    Analyze,
+    WalletProcess,
+    Finalize,
+    UtxoUpdate,
+}
+
+pub struct PsbtRpcResult {
+    pub action: PsbtRpcAction,
+    pub output_json: String,
+    pub updated_psbt: Option<String>,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -248,6 +271,51 @@ pub struct WalletTab {
     pub fetching_wallets: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PsbtFileMode {
+    Load,
+    Save,
+}
+
+pub struct PsbtFileEntry {
+    pub name: String,
+    pub path: PathBuf,
+    pub is_dir: bool,
+}
+
+pub struct PsbtTab {
+    pub psbt: String,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub scroll: u16,
+    pub rpc_in_flight: Option<PsbtRpcAction>,
+    pub picker_open: bool,
+    pub picker_mode: PsbtFileMode,
+    pub picker_dir: PathBuf,
+    pub picker_entries: Vec<PsbtFileEntry>,
+    pub picker_selected: usize,
+    pub save_name: String,
+}
+
+impl Default for PsbtTab {
+    fn default() -> Self {
+        let picker_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        PsbtTab {
+            psbt: String::new(),
+            output: None,
+            error: None,
+            scroll: 0,
+            rpc_in_flight: None,
+            picker_open: false,
+            picker_mode: PsbtFileMode::Load,
+            picker_dir,
+            picker_entries: Vec::new(),
+            picker_selected: 0,
+            save_name: "psbt.txt".to_string(),
+        }
+    }
+}
+
 pub struct App {
     pub tab: Tab,
     pub focus: Focus,
@@ -268,6 +336,7 @@ pub struct App {
 
     pub transactions: TransactionsTab,
     pub transactions_return_target: Option<(Tab, Focus)>,
+    pub psbt: PsbtTab,
     pub zmq: ZmqTab,
     pub wallet: WalletTab,
     pub rpc: MethodBrowser,
@@ -292,6 +361,7 @@ impl Default for App {
             refreshing: false,
             transactions: TransactionsTab::default(),
             transactions_return_target: None,
+            psbt: PsbtTab::default(),
             zmq: ZmqTab::default(),
             wallet: WalletTab {
                 browser: MethodBrowser::new(load_wallet_methods()),
@@ -348,6 +418,23 @@ impl App {
                     }
                     Err(e) => {
                         self.wallet.browser.error = Some(format!("listwallets failed: {}", e));
+                    }
+                }
+            }
+            Event::PsbtRpcComplete(result) => {
+                self.psbt.rpc_in_flight = None;
+                match *result {
+                    Ok(res) => {
+                        self.psbt.error = None;
+                        self.psbt.output = Some(res.output_json);
+                        self.psbt.scroll = 0;
+                        if let Some(psbt) = res.updated_psbt {
+                            self.psbt.psbt = psbt;
+                        }
+                        let _ = res.action;
+                    }
+                    Err(e) => {
+                        self.psbt.error = Some(e);
                     }
                 }
             }
@@ -459,6 +546,7 @@ impl App {
         self.tab = tab;
         self.focus = Focus::Content;
         self.transactions_return_target = None;
+        self.input_mode = InputMode::Normal;
         if tab == Tab::Transactions {
             self.input_mode = InputMode::TxSearch;
             self.transactions.search_input.clear();
@@ -479,6 +567,7 @@ impl App {
                     KeyCode::Char('m') => self.tab = Tab::Mempool,
                     KeyCode::Char('n') => self.tab = Tab::Network,
                     KeyCode::Char('p') => self.tab = Tab::Peers,
+                    KeyCode::Char('b') => self.enter_tab(Tab::Psbt),
                     KeyCode::Char('r') => self.enter_tab(Tab::Rpc),
                     KeyCode::Char('w') => self.enter_tab(Tab::Wallet),
                     KeyCode::Char('t') => self.enter_tab(Tab::Transactions),
@@ -487,6 +576,7 @@ impl App {
                 },
                 Focus::Content => match self.tab {
                     Tab::Wallet | Tab::Rpc => self.handle_browser_content(key),
+                    Tab::Psbt => self.handle_psbt_content(key),
                     Tab::Transactions => self.handle_transactions_content(key),
                     Tab::Zmq => self.handle_zmq_content(key),
                     _ => {
@@ -559,6 +649,19 @@ impl App {
                     let len = self.wallet.wallets.len();
                     if len > 0 {
                         self.wallet.picker_index = (self.wallet.picker_index + len - 1) % len;
+                    }
+                }
+                _ => {}
+            },
+            InputMode::PsbtSaveName => match key.code {
+                KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Enter => self.input_mode = InputMode::Normal,
+                KeyCode::Backspace => {
+                    self.psbt.save_name.pop();
+                }
+                KeyCode::Char(c) => {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.psbt.save_name.push(c);
                     }
                 }
                 _ => {}
@@ -660,6 +763,148 @@ impl App {
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.transactions.result_scroll =
                     self.transactions.result_scroll.saturating_sub(20);
+            }
+            _ => {}
+        }
+    }
+
+    fn refresh_psbt_picker(&mut self) {
+        let mut entries = vec![PsbtFileEntry {
+            name: "..".to_string(),
+            path: self
+                .psbt
+                .picker_dir
+                .parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| self.psbt.picker_dir.clone()),
+            is_dir: true,
+        }];
+
+        if let Ok(read_dir) = std::fs::read_dir(&self.psbt.picker_dir) {
+            for entry in read_dir.flatten() {
+                let path = entry.path();
+                let is_dir = path.is_dir();
+                let name = entry.file_name().to_string_lossy().to_string();
+                entries.push(PsbtFileEntry { name, path, is_dir });
+            }
+        }
+        entries.sort_by(|a, b| {
+            b.is_dir
+                .cmp(&a.is_dir)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
+
+        self.psbt.picker_entries = entries;
+        if self.psbt.picker_entries.is_empty() {
+            self.psbt.picker_selected = 0;
+        } else {
+            self.psbt.picker_selected =
+                self.psbt.picker_selected.min(self.psbt.picker_entries.len() - 1);
+        }
+    }
+
+    fn open_psbt_picker(&mut self, mode: PsbtFileMode) {
+        self.psbt.picker_mode = mode;
+        self.psbt.picker_open = true;
+        self.refresh_psbt_picker();
+    }
+
+    fn load_psbt_from_file(&mut self, path: &PathBuf) {
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                self.psbt.psbt = content.trim().to_string();
+                self.psbt.output = None;
+                self.psbt.error = None;
+                self.psbt.scroll = 0;
+                self.psbt.picker_open = false;
+            }
+            Err(e) => self.psbt.error = Some(format!("load {}: {}", path.display(), e)),
+        }
+    }
+
+    fn save_psbt_to_file(&mut self, path: &PathBuf) {
+        match std::fs::write(path, format!("{}\n", self.psbt.psbt.trim())) {
+            Ok(_) => {
+                self.psbt.error = None;
+                self.psbt.output = Some(format!("saved to {}", path.display()));
+                self.psbt.scroll = 0;
+                self.psbt.picker_open = false;
+            }
+            Err(e) => self.psbt.error = Some(format!("save {}: {}", path.display(), e)),
+        }
+    }
+
+    fn handle_psbt_content(&mut self, key: KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers};
+
+        if self.psbt.picker_open {
+            match key.code {
+                KeyCode::Esc => {
+                    self.psbt.picker_open = false;
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !self.psbt.picker_entries.is_empty() {
+                        self.psbt.picker_selected =
+                            (self.psbt.picker_selected + 1).min(self.psbt.picker_entries.len() - 1);
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.psbt.picker_selected = self.psbt.picker_selected.saturating_sub(1);
+                }
+                KeyCode::Char('e') if self.psbt.picker_mode == PsbtFileMode::Save => {
+                    self.input_mode = InputMode::PsbtSaveName;
+                }
+                KeyCode::Char('w') if self.psbt.picker_mode == PsbtFileMode::Save => {
+                    let target = self.psbt.picker_dir.join(self.psbt.save_name.trim());
+                    self.save_psbt_to_file(&target);
+                }
+                KeyCode::Enter => {
+                    if let Some(entry) = self.psbt.picker_entries.get(self.psbt.picker_selected) {
+                        if entry.is_dir {
+                            self.psbt.picker_dir = entry.path.clone();
+                            self.psbt.picker_selected = 0;
+                            self.refresh_psbt_picker();
+                        } else if self.psbt.picker_mode == PsbtFileMode::Load {
+                            let path = entry.path.clone();
+                            self.load_psbt_from_file(&path);
+                        } else {
+                            let path = entry.path.clone();
+                            self.save_psbt_to_file(&path);
+                        }
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match key.code {
+            KeyCode::Esc => self.focus = Focus::TabBar,
+            KeyCode::Down | KeyCode::Char('j') => self.psbt.scroll = self.psbt.scroll.saturating_add(1),
+            KeyCode::Up | KeyCode::Char('k') => self.psbt.scroll = self.psbt.scroll.saturating_sub(1),
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.psbt.scroll = self.psbt.scroll.saturating_add(20);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.psbt.scroll = self.psbt.scroll.saturating_sub(20);
+            }
+            KeyCode::Char('l') => self.open_psbt_picker(PsbtFileMode::Load),
+            KeyCode::Char('s') => self.open_psbt_picker(PsbtFileMode::Save),
+            KeyCode::Char('a') if !self.psbt.psbt.trim().is_empty() => {
+                self.psbt.rpc_in_flight = Some(PsbtRpcAction::Analyze);
+            }
+            KeyCode::Char('d') if !self.psbt.psbt.trim().is_empty() => {
+                self.psbt.rpc_in_flight = Some(PsbtRpcAction::Decode);
+            }
+            KeyCode::Char('p') if !self.psbt.psbt.trim().is_empty() => {
+                self.psbt.rpc_in_flight = Some(PsbtRpcAction::WalletProcess);
+            }
+            KeyCode::Char('f') if !self.psbt.psbt.trim().is_empty() => {
+                self.psbt.rpc_in_flight = Some(PsbtRpcAction::Finalize);
+            }
+            KeyCode::Char('u') if !self.psbt.psbt.trim().is_empty() => {
+                self.psbt.rpc_in_flight = Some(PsbtRpcAction::UtxoUpdate);
             }
             _ => {}
         }
