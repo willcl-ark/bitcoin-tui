@@ -73,7 +73,7 @@ fn render_kpis(app: &App, frame: &mut Frame, area: Rect) {
     render_kpi(frame, cols[0], "Chain", &chain, chain_color);
     render_kpi(frame, cols[1], "Height", &height, Color::White);
     render_kpi(frame, cols[2], "Peers", &peers, Color::White);
-    render_kpi(frame, cols[3], "Mempool", &mempool_txs, Color::White);
+    render_kpi(frame, cols[3], "Mempool Txs", &mempool_txs, Color::White);
     render_kpi(frame, cols[4], "Min Fee", &min_fee, Color::White);
     render_kpi(frame, cols[5], "Hashrate", &hashrate, Color::White);
 }
@@ -151,6 +151,20 @@ fn render_chain_details(app: &App, frame: &mut Frame, area: Rect) {
         kv("Best", fmt_abbreviated_hash(&info.bestblockhash), Color::White),
         kv("Difficulty", fmt_difficulty(info.difficulty), Color::White),
         kv("Disk", fmt_bytes(info.size_on_disk), Color::White),
+        kv(
+            "IBD",
+            if info.initialblockdownload { "yes" } else { "no" },
+            if info.initialblockdownload {
+                Color::Red
+            } else {
+                Color::Green
+            },
+        ),
+        kv(
+            "Pruned",
+            if info.pruned { "yes" } else { "no" },
+            Color::White,
+        ),
         kv(
             "Block Time",
             if info.time > 0 {
@@ -259,37 +273,35 @@ fn render_bottom(app: &App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_sync_gauge(app: &App, frame: &mut Frame, area: Rect) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Sync / Chain");
     let Some(info) = &app.blockchain else {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("Sync / Chain");
         frame.render_widget(Paragraph::new("Connecting...").block(block), area);
         return;
     };
     let progress = info.verificationprogress.min(1.0);
-    let color = if progress >= 0.9999 {
-        Color::Green
+    let fill_color = if progress >= 0.9999 {
+        Color::LightGreen
     } else {
         Color::Yellow
     };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!("Sync {:.2}%", progress * 100.0));
     let gauge = Gauge::default()
         .block(block)
-        .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
+        .gauge_style(Style::default().fg(fill_color).bg(Color::Black))
         .ratio(progress)
-        .label(format!(
-            "{:.2}% | IBD:{} | Pruned:{}",
-            progress * 100.0,
-            if info.initialblockdownload { "yes" } else { "no" },
-            if info.pruned { "yes" } else { "no" }
-        ));
+        .label("");
     frame.render_widget(gauge, area);
 }
 
 fn render_mem_gauge(app: &App, frame: &mut Frame, area: Rect) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Mempool Memory");
     let Some(info) = &app.mempool else {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("Mempool Memory");
         frame.render_widget(Paragraph::new("Connecting...").block(block), area);
         return;
     };
@@ -298,18 +310,25 @@ fn render_mem_gauge(app: &App, frame: &mut Frame, area: Rect) {
     } else {
         0.0
     };
-    let mem_color = if usage_ratio < 0.5 {
-        Color::Cyan
+    let fill_color = if usage_ratio < 0.5 {
+        Color::LightBlue
     } else if usage_ratio < 0.8 {
         Color::Yellow
     } else {
-        Color::Red
+        Color::LightRed
     };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(
+            "Mempool Memory {} / {}",
+            fmt_bytes(info.usage),
+            fmt_bytes(info.maxmempool)
+        ));
     let gauge = Gauge::default()
         .block(block)
-        .gauge_style(Style::default().fg(mem_color).bg(Color::DarkGray))
+        .gauge_style(Style::default().fg(fill_color).bg(Color::Black))
         .ratio(usage_ratio.min(1.0))
-        .label(format!("{} / {}", fmt_bytes(info.usage), fmt_bytes(info.maxmempool)));
+        .label("");
     frame.render_widget(gauge, area);
 }
 
