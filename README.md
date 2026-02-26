@@ -14,7 +14,7 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
 - **Transactions** — search for any transaction by txid; results show mempool status (fee, size, ancestors/descendants) or confirmed details (confirmations, block age)
 - **RPC** — browse all non-wallet RPC methods (blockchain, mempool, mining, network, etc.) with inline help, type arguments, execute calls, and view results
-- **Wallet** — browse all 56 wallet RPC methods with inline help, type arguments, execute calls, and view results
+- **Wallet** — browse wallet and rawtransactions RPC methods with inline help, type arguments, execute calls, and view results
 
 ### RPC explorer
 

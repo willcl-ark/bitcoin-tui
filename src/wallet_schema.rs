@@ -42,7 +42,7 @@ pub struct RpcParam {
 }
 
 pub fn load_wallet_methods() -> Vec<RpcMethod> {
-    load_methods(|cat| cat == Some("wallet"))
+    load_methods(|cat| matches!(cat, Some("wallet" | "rawtransactions")))
 }
 
 pub fn load_non_wallet_methods() -> Vec<RpcMethod> {
