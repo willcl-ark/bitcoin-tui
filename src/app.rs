@@ -569,6 +569,17 @@ impl App {
                     b.update_method_filter();
                     self.input_mode = InputMode::Normal;
                 }
+                KeyCode::Down => {
+                    let b = self.active_browser();
+                    if !b.filtered_indices.is_empty() {
+                        b.filtered_selected =
+                            (b.filtered_selected + 1).min(b.filtered_indices.len() - 1);
+                    }
+                }
+                KeyCode::Up => {
+                    let b = self.active_browser();
+                    b.filtered_selected = b.filtered_selected.saturating_sub(1);
+                }
                 KeyCode::Backspace => {
                     let b = self.active_browser();
                     b.method_search.pop();
