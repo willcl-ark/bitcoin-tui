@@ -115,10 +115,15 @@ fn render_kpi(frame: &mut Frame, area: Rect, title: &str, value: &str, color: Co
 
 fn render_middle(app: &App, frame: &mut Frame, area: Rect) {
     let cols = Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
-    let left =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(cols[0]);
+    let left = Layout::vertical([
+        Constraint::Ratio(1, 2),
+        Constraint::Ratio(1, 2),
+        Constraint::Length(8),
+    ])
+    .split(cols[0]);
     render_recent_blocks(app, frame, left[0]);
-    render_chain_details(app, frame, left[1]);
+    render_chain_tips(app, frame, left[1]);
+    render_chain_details(app, frame, left[2]);
 
     let right = Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(cols[1]);
     render_network_compact(app, frame, right[0]);
@@ -253,6 +258,50 @@ fn render_chain_details(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
+fn render_chain_tips(app: &App, frame: &mut Frame, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Chain Tips");
+    let Some(tips) = &app.chaintips else {
+        frame.render_widget(Paragraph::new("Connecting...").block(block), area);
+        return;
+    };
+
+    let mut lines = vec![Line::from(vec![Span::styled(
+        format!(
+            "{:<10} {:<12} {:>8} {}",
+            "Height", "Status", "Branch", "Hash"
+        ),
+        Style::default().fg(Color::DarkGray),
+    )])];
+
+    let max_rows = area.height.saturating_sub(3) as usize;
+    let mut sorted: Vec<_> = tips.iter().collect();
+    sorted.sort_by(|a, b| b.height.cmp(&a.height));
+
+    for tip in sorted.iter().take(max_rows) {
+        let status_color = match tip.status.as_str() {
+            "active" => Color::Green,
+            "valid-fork" | "valid-headers" => Color::Yellow,
+            _ => Color::Red,
+        };
+        let hash_display = if tip.hash.len() > 16 {
+            format!("{}…{}", &tip.hash[..8], &tip.hash[tip.hash.len() - 8..])
+        } else {
+            tip.hash.clone()
+        };
+        lines.push(Line::from(vec![
+            Span::raw(format!("{:<10} ", tip.height)),
+            Span::styled(format!("{:<12} ", tip.status), Style::default().fg(status_color)),
+            Span::raw(format!("{:>8} ", tip.branchlen)),
+            Span::styled(hash_display, Style::default().fg(Color::DarkGray)),
+        ]));
+    }
+
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+
 fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
     let block = Block::default().borders(Borders::ALL).title("Network");
 
@@ -270,7 +319,7 @@ fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
         Color::Red
     };
 
-    let lines = vec![
+    let mut lines = vec![
         kv(
             "Active",
             if info.networkactive { "yes" } else { "no" },
@@ -295,6 +344,18 @@ fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
         ),
     ];
 
+    let mut traffic_lines: Vec<Line> = vec![Line::raw("")];
+    if let Some(nt) = &app.nettotals {
+        traffic_lines.push(kv("Received", fmt_bytes(nt.totalbytesrecv), Color::White));
+        traffic_lines.push(kv("Sent", fmt_bytes(nt.totalbytessent), Color::White));
+        traffic_lines.push(kv(
+            "Total",
+            fmt_bytes(nt.totalbytesrecv + nt.totalbytessent),
+            Color::White,
+        ));
+        traffic_lines.push(Line::raw(""));
+    }
+
     let net_table_h = if info.networks.is_empty() {
         0
     } else {
@@ -306,13 +367,15 @@ fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
         1 + info.localaddresses.len() as u16
     };
 
+    let kv_h = 7 + traffic_lines.len() as u16;
     let chunks = Layout::vertical([
-        Constraint::Length(8),
+        Constraint::Length(kv_h),
         Constraint::Length(net_table_h),
         Constraint::Length(addr_h),
     ])
     .split(inner);
 
+    lines.extend(traffic_lines);
     frame.render_widget(Paragraph::new(lines), chunks[0]);
 
     if !info.networks.is_empty() {

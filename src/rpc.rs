@@ -184,6 +184,14 @@ impl RpcClient {
         self.call("getpeerinfo", json!([])).await
     }
 
+    pub async fn get_net_totals(&self) -> Result<NetTotals, String> {
+        self.call("getnettotals", json!([])).await
+    }
+
+    pub async fn get_chain_tips(&self) -> Result<Vec<ChainTip>, String> {
+        self.call("getchaintips", json!([])).await
+    }
+
     pub async fn get_block_stats(&self, height: u64) -> Result<BlockStats, String> {
         self.call(
             "getblockstats",

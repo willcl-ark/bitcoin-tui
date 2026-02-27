@@ -95,6 +95,8 @@ pub struct PollResult {
     pub mempool: Result<MempoolInfo, String>,
     pub mining: Result<MiningInfo, String>,
     pub peers: Result<Vec<PeerInfo>, String>,
+    pub nettotals: Result<NetTotals, String>,
+    pub chaintips: Result<Vec<ChainTip>, String>,
     pub recent_blocks: Option<Vec<BlockStats>>,
 }
 
@@ -327,6 +329,8 @@ pub struct App {
     pub network: Option<NetworkInfo>,
     pub mempool: Option<MempoolInfo>,
     pub mining: Option<MiningInfo>,
+    pub nettotals: Option<NetTotals>,
+    pub chaintips: Option<Vec<ChainTip>>,
     pub peers: Option<Vec<PeerInfo>>,
     pub peers_show_user_agent: bool,
     pub peers_selected: usize,
@@ -367,6 +371,8 @@ impl Default for App {
             network: None,
             mempool: None,
             mining: None,
+            nettotals: None,
+            chaintips: None,
             peers: None,
             peers_show_user_agent: false,
             peers_selected: 0,
@@ -607,6 +613,22 @@ impl App {
         }
         match result.mining {
             Ok(info) => self.mining = Some(info),
+            Err(e) if !had_error => {
+                had_error = true;
+                self.rpc_error = Some(e);
+            }
+            _ => {}
+        }
+        match result.nettotals {
+            Ok(info) => self.nettotals = Some(info),
+            Err(e) if !had_error => {
+                had_error = true;
+                self.rpc_error = Some(e);
+            }
+            _ => {}
+        }
+        match result.chaintips {
+            Ok(tips) => self.chaintips = Some(tips),
             Err(e) if !had_error => {
                 had_error = true;
                 self.rpc_error = Some(e);

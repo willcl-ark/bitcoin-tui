@@ -301,12 +301,14 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
         let mut cached_recent_blocks: Vec<crate::rpc_types::BlockStats> = Vec::new();
         loop {
             tracing::debug!("rpc poll starting");
-            let (blockchain, network, mempool, mining, peers) = tokio::join!(
+            let (blockchain, network, mempool, mining, peers, nettotals, chaintips) = tokio::join!(
                 rpc.get_blockchain_info(),
                 rpc.get_network_info(),
                 rpc.get_mempool_info(),
                 rpc.get_mining_info(),
                 rpc.get_peer_info(),
+                rpc.get_net_totals(),
+                rpc.get_chain_tips(),
             );
             tracing::debug!("rpc poll complete");
 
@@ -330,6 +332,8 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 mempool,
                 mining,
                 peers,
+                nettotals,
+                chaintips,
                 recent_blocks: None,
             };
 

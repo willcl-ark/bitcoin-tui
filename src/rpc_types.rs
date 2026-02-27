@@ -103,6 +103,21 @@ pub struct MempoolInfo {
 }
 
 #[derive(Deserialize, Clone, Default)]
+pub struct NetTotals {
+    pub totalbytesrecv: u64,
+    pub totalbytessent: u64,
+    pub timemillis: u64,
+}
+
+#[derive(Deserialize, Clone, Default)]
+pub struct ChainTip {
+    pub height: u64,
+    pub hash: String,
+    pub branchlen: u64,
+    pub status: String,
+}
+
+#[derive(Deserialize, Clone, Default)]
 pub struct MiningInfo {
     pub blocks: u64,
     pub difficulty: f64,
