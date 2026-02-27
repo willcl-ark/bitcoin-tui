@@ -65,8 +65,8 @@ impl RpcClient {
         }
     }
 
-    async fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T, String> {
-        tracing::debug!(method, %params, "rpc request");
+    async fn execute(&self, url: &str, method: &str, params: Value) -> Result<Value, String> {
+        tracing::debug!(method, %params, url, "rpc request");
         let auth = self.auth_header().await?;
         let body = json!({
             "jsonrpc": "1.0",
@@ -77,76 +77,7 @@ impl RpcClient {
 
         let resp = self
             .client
-            .post(&self.url)
-            .header("Authorization", &auth)
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!(method, error = %e, "rpc connection failed");
-                format!("RPC connection failed: {}", e)
-            })?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-
-        if !status.is_success() {
-            tracing::error!(method, %status, "rpc error");
-            return Err(format!("RPC error ({}): {}", status, text));
-        }
-
-        let parsed: Value =
-            serde_json::from_str(&text).map_err(|e| format!("Invalid JSON: {}", e))?;
-
-        if let Some(err) = parsed.get("error")
-            && !err.is_null()
-        {
-            tracing::error!(method, %err, "rpc error response");
-            return Err(format!("RPC error: {}", err));
-        }
-
-        tracing::debug!(method, "rpc response ok");
-        serde_json::from_value(parsed["result"].clone())
-            .map_err(|e| format!("Failed to parse {}: {}", method, e))
-    }
-
-    pub async fn call_raw(
-        &self,
-        method: &str,
-        params: Value,
-        wallet: Option<&str>,
-    ) -> Result<Value, String> {
-        tracing::debug!(method, %params, wallet, "rpc request");
-        let auth = self.auth_header().await?;
-        let url = match wallet {
-            Some(name) if !name.is_empty() => {
-                let mut wallet_url = reqwest::Url::parse(&self.url)
-                    .map_err(|e| format!("Invalid RPC URL {}: {}", self.url, e))?;
-                {
-                    let mut segments = wallet_url.path_segments_mut().map_err(|_| {
-                        format!("RPC URL does not support path segments: {}", self.url)
-                    })?;
-                    segments.push("wallet");
-                    segments.push(name);
-                }
-                wallet_url.to_string()
-            }
-            _ => self.url.clone(),
-        };
-        let body = json!({
-            "jsonrpc": "1.0",
-            "id": method,
-            "method": method,
-            "params": params,
-        });
-
-        let resp = self
-            .client
-            .post(&url)
+            .post(url)
             .header("Authorization", &auth)
             .header("Content-Type", "application/json")
             .json(&body)
@@ -180,6 +111,35 @@ impl RpcClient {
 
         tracing::debug!(method, "rpc response ok");
         Ok(parsed["result"].clone())
+    }
+
+    async fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T, String> {
+        let result = self.execute(&self.url, method, params).await?;
+        serde_json::from_value(result).map_err(|e| format!("Failed to parse {}: {}", method, e))
+    }
+
+    pub async fn call_raw(
+        &self,
+        method: &str,
+        params: Value,
+        wallet: Option<&str>,
+    ) -> Result<Value, String> {
+        let url = match wallet {
+            Some(name) if !name.is_empty() => {
+                let mut wallet_url = reqwest::Url::parse(&self.url)
+                    .map_err(|e| format!("Invalid RPC URL {}: {}", self.url, e))?;
+                {
+                    let mut segments = wallet_url.path_segments_mut().map_err(|_| {
+                        format!("RPC URL does not support path segments: {}", self.url)
+                    })?;
+                    segments.push("wallet");
+                    segments.push(name);
+                }
+                wallet_url.to_string()
+            }
+            _ => self.url.clone(),
+        };
+        self.execute(&url, method, params).await
     }
 
     pub async fn get_blockchain_info(&self) -> Result<BlockchainInfo, String> {
