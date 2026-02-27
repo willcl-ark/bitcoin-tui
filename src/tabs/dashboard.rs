@@ -139,28 +139,42 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
-    let mut lines = vec![Line::from(vec![
-        Span::styled(
-            format!(
-                "{:<10} {:>8} {:>10} {:>8} {:<12} {}",
-                "Height", "Txs", "Size", "Fee", "Age", "Pool"
-            ),
-            Style::default().fg(Color::DarkGray),
-        ),
-    ])];
+    let header = format!(
+        "{:<10} {:>8} {:>10} {:>8} {:>8} {:<12} {}",
+        "Height", "Txs", "Size", "Weight", "Fee", "Age", "Pool"
+    );
+    let mut lines = vec![Line::from(vec![Span::styled(
+        header,
+        Style::default().fg(Color::DarkGray),
+    )])];
 
+    const MAX_WEIGHT: f64 = 4_000_000.0;
     let max_rows = area.height.saturating_sub(3) as usize;
     for b in app.recent_blocks.iter().rev().take(max_rows) {
+        let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0);
+        let weight_color = if pct >= 75.0 {
+            Color::Green
+        } else if pct >= 50.0 {
+            Color::Yellow
+        } else {
+            Color::Red
+        };
         let pool = b.pool.as_deref().unwrap_or("");
-        lines.push(Line::from(format!(
-            "{:<10} {:>8} {:>10} {:>8} {:<12} {}",
-            b.height,
-            fmt_number(b.txs),
-            fmt_bytes(b.total_size),
-            b.avgfeerate,
-            fmt_relative_time(b.time),
-            pool,
-        )));
+        lines.push(Line::from(vec![
+            Span::raw(format!(
+                "{:<10} {:>8} {:>10} ",
+                b.height,
+                fmt_number(b.txs),
+                fmt_bytes(b.total_size),
+            )),
+            Span::styled(format!("{:>8}", fmt_bytes(b.total_weight)), Style::default().fg(weight_color)),
+            Span::raw(format!(
+                " {:>8} {:<12} {}",
+                b.avgfeerate,
+                fmt_relative_time(b.time),
+                pool,
+            )),
+        ]));
     }
 
     if lines.len() == 1 {
