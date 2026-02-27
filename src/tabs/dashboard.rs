@@ -83,7 +83,7 @@ fn render_kpis(app: &App, frame: &mut Frame, area: Rect) {
     let min_fee = app
         .mempool
         .as_ref()
-        .map(|m| fmt_sat_per_vb(m.mempoolminfee.as_f64()))
+        .map(|m| fmt_sat_per_vb(m.mempoolminfee.as_f64().unwrap_or(0.0)))
         .unwrap_or_else(|| "—".into());
     let hashrate = app
         .mining
@@ -530,10 +530,14 @@ fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
             format!("{} / {}", fmt_bytes(info.usage), fmt_bytes(info.maxmempool)),
             Color::White,
         ),
-        kv("Total Fees", fmt_btc(info.total_fee.as_f64()), Color::White),
+        kv(
+            "Total Fees",
+            fmt_btc(info.total_fee.as_f64().unwrap_or(0.0)),
+            Color::White,
+        ),
         kv(
             "Min Fee",
-            fmt_sat_per_vb(info.mempoolminfee.as_f64()),
+            fmt_sat_per_vb(info.mempoolminfee.as_f64().unwrap_or(0.0)),
             Color::White,
         ),
         kv("Unbroadcast", fmt_number(info.unbroadcastcount), Color::White),

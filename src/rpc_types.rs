@@ -15,11 +15,11 @@ pub enum StringOrF64 {
 }
 
 impl StringOrF64 {
-    pub fn as_f64(&self) -> f64 {
+    pub fn as_f64(&self) -> Option<f64> {
         match self {
-            StringOrF64::None => 0.0,
-            StringOrF64::Str(s) => s.parse().unwrap_or(0.0),
-            StringOrF64::Num(n) => *n,
+            StringOrF64::None => None,
+            StringOrF64::Str(s) => s.parse().ok(),
+            StringOrF64::Num(n) => Some(*n),
         }
     }
 }

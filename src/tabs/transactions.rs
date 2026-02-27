@@ -94,8 +94,9 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
             entry,
             decoded,
         } => {
+            let base_fee = entry.fees.base.as_f64().unwrap_or(0.0);
             let fee_rate = if entry.vsize > 0 {
-                let fee_sats = entry.fees.base.as_f64() * 100_000_000.0;
+                let fee_sats = base_fee * 100_000_000.0;
                 format!("{:.1} sat/vB", fee_sats / entry.vsize as f64)
             } else {
                 "—".into()
@@ -109,7 +110,7 @@ fn render_result(result: &SearchResult, scroll: u16, frame: &mut Frame, area: Re
                         .add_modifier(Modifier::BOLD),
                 ),
                 kv("TXID", txid.clone(), Style::default()),
-                kv("Fee", fmt_btc(entry.fees.base.as_f64()), Style::default()),
+                kv("Fee", fmt_btc(base_fee), Style::default()),
                 kv("Fee Rate", &fee_rate, Style::default()),
                 kv("vSize", fmt_number(entry.vsize), Style::default()),
                 kv("Weight", fmt_number(entry.weight), Style::default()),
