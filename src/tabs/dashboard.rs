@@ -141,20 +141,25 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
 
     let mut lines = vec![Line::from(vec![
         Span::styled(
-            format!("{:<10} {:>8} {:>10} {:>8} {}", "Height", "Txs", "Size", "Fee", "Age"),
+            format!(
+                "{:<10} {:>8} {:>10} {:>8} {:<12} {}",
+                "Height", "Txs", "Size", "Fee", "Age", "Pool"
+            ),
             Style::default().fg(Color::DarkGray),
         ),
     ])];
 
     let max_rows = area.height.saturating_sub(3) as usize;
     for b in app.recent_blocks.iter().rev().take(max_rows) {
+        let pool = b.pool.as_deref().unwrap_or("");
         lines.push(Line::from(format!(
-            "{:<10} {:>8} {:>10} {:>8} {}",
+            "{:<10} {:>8} {:>10} {:>8} {:<12} {}",
             b.height,
             fmt_number(b.txs),
             fmt_bytes(b.total_size),
             b.avgfeerate,
-            fmt_relative_time(b.time)
+            fmt_relative_time(b.time),
+            pool,
         )));
     }
 

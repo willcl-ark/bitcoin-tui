@@ -166,6 +166,8 @@ pub struct BlockStats {
     pub total_weight: u64,
     pub avgfeerate: u64,
     pub time: u64,
+    #[serde(default)]
+    pub pool: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Default)]

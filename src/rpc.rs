@@ -210,6 +210,10 @@ impl RpcClient {
         .await
     }
 
+    pub async fn get_block_hash(&self, height: u64) -> Result<String, String> {
+        self.call("getblockhash", json!([height])).await
+    }
+
     pub async fn get_mempool_entry(&self, txid: &str) -> Result<MempoolEntry, String> {
         self.call("getmempoolentry", json!([txid])).await
     }

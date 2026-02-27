@@ -357,7 +357,8 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                     }
 
                     for h in start_height..=height {
-                        if let Ok(stats) = rpc.get_block_stats(h).await {
+                        if let Ok(mut stats) = rpc.get_block_stats(h).await {
+                            stats.pool = get_block_pool(&rpc, h).await;
                             updated.push(stats);
                         }
                     }
@@ -379,6 +380,42 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
         }
     });
+}
+
+async fn get_block_pool(rpc: &rpc::RpcClient, height: u64) -> Option<String> {
+    let hash = rpc.get_block_hash(height).await.ok()?;
+    let block: serde_json::Value = rpc
+        .call_raw("getblock", serde_json::json!([hash, 1]), None)
+        .await
+        .ok()?;
+    let txid = block["tx"][0].as_str()?;
+    let tx = rpc.get_raw_transaction(txid).await.ok()?;
+    let coinbase_hex = tx.vin.first()?.coinbase.as_ref()?;
+    extract_pool_name(coinbase_hex)
+}
+
+fn extract_pool_name(coinbase_hex: &str) -> Option<String> {
+    let bytes: Vec<u8> = (0..coinbase_hex.len())
+        .step_by(2)
+        .filter_map(|i| u8::from_str_radix(coinbase_hex.get(i..i + 2)?, 16).ok())
+        .collect();
+
+    let mut last_match = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'/' {
+            if let Some(end) = bytes[i + 1..].iter().position(|&b| b == b'/') {
+                let name = &bytes[i + 1..i + 1 + end];
+                if !name.is_empty() && name.iter().all(|&b| b.is_ascii_graphic() || b == b' ') {
+                    last_match = Some(String::from_utf8_lossy(name).into_owned());
+                }
+                i += end + 2;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    last_match
 }
 
 fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
