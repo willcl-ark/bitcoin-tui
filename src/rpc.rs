@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -36,10 +37,16 @@ impl RpcClient {
         } else {
             Auth::Cookie(cookie.unwrap_or_else(|| default_cookie_path(None)))
         };
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("failed to build RPC client");
+
         RpcClient {
             url,
             auth,
-            client: Client::new(),
+            client,
         }
     }
 
