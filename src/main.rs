@@ -528,6 +528,7 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
             let hash_bytes = &frames[1];
             let hash = hash_bytes
                 .iter()
+                .rev()
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
 
