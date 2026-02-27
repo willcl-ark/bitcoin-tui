@@ -3,23 +3,44 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Bar, BarChart, BarGroup, Block, Borders, Cell, Gauge, Paragraph, Row, Table},
+    widgets::{
+        Bar, BarChart, BarGroup, Block, Borders, Cell, Gauge, Paragraph, Row, Sparkline, Table,
+    },
 };
 
 use crate::app::App;
 use crate::format::*;
 
 pub fn render(app: &App, frame: &mut Frame, area: Rect) {
-    let rows = Layout::vertical([
-        Constraint::Length(3),
-        Constraint::Min(10),
-        Constraint::Length(3),
-    ])
-    .split(area);
+    if app.zmq.enabled {
+        let rows = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(10),
+            Constraint::Length(10),
+            Constraint::Length(5),
+            Constraint::Length(3),
+        ])
+        .split(area);
 
-    render_kpis(app, frame, rows[0]);
-    render_middle(app, frame, rows[1]);
-    render_bottom(app, frame, rows[2]);
+        render_kpis(app, frame, rows[0]);
+        render_middle(app, frame, rows[1]);
+        render_block_chart(app, frame, rows[2]);
+        render_tx_rate(app, frame, rows[3]);
+        render_gauges(app, frame, rows[4]);
+    } else {
+        let rows = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(10),
+            Constraint::Length(10),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+        render_kpis(app, frame, rows[0]);
+        render_middle(app, frame, rows[1]);
+        render_block_chart(app, frame, rows[2]);
+        render_gauges(app, frame, rows[3]);
+    }
 }
 
 fn render_kpis(app: &App, frame: &mut Frame, area: Rect) {
@@ -94,15 +115,10 @@ fn render_kpi(frame: &mut Frame, area: Rect, title: &str, value: &str, color: Co
 
 fn render_middle(app: &App, frame: &mut Frame, area: Rect) {
     let cols = Layout::horizontal([Constraint::Ratio(3, 5), Constraint::Ratio(2, 5)]).split(area);
-    let left = Layout::vertical([
-        Constraint::Ratio(1, 3),
-        Constraint::Ratio(1, 3),
-        Constraint::Ratio(1, 3),
-    ])
-    .split(cols[0]);
+    let left =
+        Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(cols[0]);
     render_recent_blocks(app, frame, left[0]);
-    render_block_chart(app, frame, left[1]);
-    render_chain_details(app, frame, left[2]);
+    render_chain_details(app, frame, left[1]);
 
     let right = Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(cols[1]);
     render_network_compact(app, frame, right[0]);
@@ -418,8 +434,9 @@ fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
     let _ = mem_color;
 }
 
-fn render_bottom(app: &App, frame: &mut Frame, area: Rect) {
-    let cols = Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
+fn render_gauges(app: &App, frame: &mut Frame, area: Rect) {
+    let cols =
+        Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
     render_sync_gauge(app, frame, cols[0]);
     render_mem_gauge(app, frame, cols[1]);
 }
@@ -482,6 +499,19 @@ fn render_mem_gauge(app: &App, frame: &mut Frame, area: Rect) {
         .ratio(usage_ratio.min(1.0))
         .label("");
     frame.render_widget(gauge, area);
+}
+
+fn render_tx_rate(app: &App, frame: &mut Frame, area: Rect) {
+    let data: Vec<u64> = app.zmq.tx_rate.iter().copied().collect();
+    let rate = data.last().copied().unwrap_or(0);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!("TX Rate  {} tx/s", rate));
+    let sparkline = Sparkline::default()
+        .block(block)
+        .data(&data)
+        .style(Style::default().fg(Color::Cyan));
+    frame.render_widget(sparkline, area);
 }
 
 fn kv(key: &str, value: impl Into<String>, color: Color) -> Line<'static> {

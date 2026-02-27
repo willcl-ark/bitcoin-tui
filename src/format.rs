@@ -100,11 +100,3 @@ pub fn fmt_relative_time(unix: u64) -> String {
         "just now".to_string()
     }
 }
-
-pub fn fmt_abbreviated_hash(h: &str) -> String {
-    if h.len() > 16 {
-        format!("{}...{}", &h[..8], &h[h.len() - 8..])
-    } else {
-        h.to_string()
-    }
-}

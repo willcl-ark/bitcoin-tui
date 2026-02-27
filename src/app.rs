@@ -260,6 +260,8 @@ pub struct ZmqTab {
     pub block_popup_error: Option<String>,
     pub block_popup_loading: bool,
     pub block_popup_scroll: u16,
+    pub tx_rate: VecDeque<u64>,
+    pub tx_rate_epoch: Option<Instant>,
 }
 
 pub struct WalletTab {
@@ -412,7 +414,7 @@ impl App {
     pub fn update(&mut self, event: Event) {
         match event {
             Event::Key(key) => self.handle_key(key),
-            Event::Tick => {}
+            Event::Tick => self.advance_tx_rate(),
             Event::PollComplete(result) => self.handle_poll(*result),
             Event::RecentBlocksComplete(blocks) => {
                 self.recent_blocks = *blocks;
@@ -483,16 +485,16 @@ impl App {
             Event::ZmqMessage(entry) => {
                 const MAX_ENTRIES: usize = 2000;
                 self.zmq.error = None;
+                if entry.topic == "hashtx" {
+                    self.record_tx_rate();
+                }
                 let was_at_top = self.zmq.selected == 0;
                 self.zmq.entries.push_back(*entry);
                 if self.zmq.entries.len() > MAX_ENTRIES {
                     self.zmq.entries.pop_front();
-                    // Item at front was removed, adjust selected down
                     self.zmq.selected = self.zmq.selected.saturating_sub(1);
                 }
                 if !was_at_top {
-                    // New entry pushed at end (displayed at top in reversed view),
-                    // shift selected so it stays on the same item
                     self.zmq.selected =
                         (self.zmq.selected + 1).min(self.zmq.entries.len().saturating_sub(1));
                 }
@@ -529,6 +531,45 @@ impl App {
                     }
                 }
             }
+        }
+    }
+
+    const TX_RATE_BUCKET_MS: u128 = 250;
+    const TX_RATE_MAX_BUCKETS: usize = 240;
+
+    fn advance_tx_rate_to(&mut self, now: Instant) {
+        let Some(epoch) = self.zmq.tx_rate_epoch else {
+            return;
+        };
+        let bucket =
+            (now.duration_since(epoch).as_millis() / Self::TX_RATE_BUCKET_MS) as usize;
+        let current_len = self.zmq.tx_rate.len();
+        if bucket >= current_len {
+            let fill = (bucket + 1 - current_len).min(Self::TX_RATE_MAX_BUCKETS);
+            for _ in 0..fill {
+                self.zmq.tx_rate.push_back(0);
+            }
+            while self.zmq.tx_rate.len() > Self::TX_RATE_MAX_BUCKETS {
+                self.zmq.tx_rate.pop_front();
+            }
+        }
+    }
+
+    fn record_tx_rate(&mut self) {
+        let now = Instant::now();
+        if self.zmq.tx_rate_epoch.is_none() {
+            self.zmq.tx_rate_epoch = Some(now);
+            self.zmq.tx_rate.push_back(0);
+        }
+        self.advance_tx_rate_to(now);
+        if let Some(last) = self.zmq.tx_rate.back_mut() {
+            *last += 1;
+        }
+    }
+
+    fn advance_tx_rate(&mut self) {
+        if self.zmq.tx_rate_epoch.is_some() {
+            self.advance_tx_rate_to(Instant::now());
         }
     }
 
