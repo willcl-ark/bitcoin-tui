@@ -219,8 +219,6 @@ fn render_detail(
         )));
     }
 
-    let result_line_offset = lines.len();
-
     if let Some(result) = &browser.result {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
@@ -258,15 +256,7 @@ fn render_detail(
         )));
     }
 
-    let scroll_offset = if has_matches {
-        let idx = browser
-            .detail_match_index
-            .min(browser.detail_matches.len().saturating_sub(1));
-        let match_line = browser.detail_matches[idx];
-        result_line_offset as u16 + 2 + match_line
-    } else {
-        browser.result_scroll
-    };
+    let scroll_offset = browser.result_scroll;
 
     let paragraph = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
