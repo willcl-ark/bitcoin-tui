@@ -575,27 +575,52 @@ fn parse_args(input: &str) -> Result<serde_json::Value, String> {
 }
 
 async fn search_tx(rpc: &RpcClient, txid: &str) -> Result<SearchResult, String> {
-    tracing::debug!(txid, "searching for tx");
-    if let Ok(entry) = rpc.get_mempool_entry(txid).await {
-        tracing::debug!(txid, "found in mempool");
-        let decoded = decode_tx_for_display(rpc, txid).await;
-        return Ok(SearchResult::Mempool {
-            txid: txid.to_string(),
-            entry,
-            decoded,
-        });
-    }
-    if let Ok(tx) = rpc.get_raw_transaction(txid).await {
-        tracing::debug!(txid, "found confirmed");
-        let decoded = decode_tx_for_display(rpc, txid).await;
-        return Ok(SearchResult::Confirmed {
-            txid: txid.to_string(),
-            tx,
-            decoded,
-        });
+    for candidate in txid_candidates(txid) {
+        tracing::debug!(requested = txid, candidate, "searching for tx");
+        if let Ok(entry) = rpc.get_mempool_entry(&candidate).await {
+            tracing::debug!(txid = candidate, "found in mempool");
+            let decoded = decode_tx_for_display(rpc, &candidate).await;
+            return Ok(SearchResult::Mempool {
+                txid: candidate,
+                entry,
+                decoded,
+            });
+        }
+        if let Ok(tx) = rpc.get_raw_transaction(&candidate).await {
+            tracing::debug!(txid = candidate, "found confirmed");
+            let decoded = decode_tx_for_display(rpc, &candidate).await;
+            return Ok(SearchResult::Confirmed {
+                txid: candidate,
+                tx,
+                decoded,
+            });
+        }
     }
     tracing::debug!(txid, "tx not found");
     Err("Transaction not found".to_string())
+}
+
+fn txid_candidates(txid: &str) -> Vec<String> {
+    let trimmed = txid.trim();
+    let mut out = vec![trimmed.to_string()];
+    if let Some(reversed) = reverse_32byte_hex(trimmed)
+        && reversed != trimmed
+    {
+        out.push(reversed);
+    }
+    out
+}
+
+fn reverse_32byte_hex(s: &str) -> Option<String> {
+    if s.len() != 64 || !s.as_bytes().iter().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let mut out = String::with_capacity(64);
+    for i in (0..64).step_by(2).rev() {
+        out.push_str(&s[i..i + 2]);
+    }
+    Some(out)
 }
 
 async fn decode_tx_for_display(rpc: &RpcClient, txid: &str) -> Option<String> {
