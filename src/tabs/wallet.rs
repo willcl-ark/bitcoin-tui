@@ -2,7 +2,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Clear, List, ListItem},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState},
 };
 
 use crate::app::{App, Focus, InputMode};
@@ -44,20 +44,13 @@ fn render_wallet_picker(app: &App, frame: &mut Frame, area: Rect) {
 
     let items: Vec<ListItem> = wallets
         .iter()
-        .enumerate()
-        .map(|(i, name)| {
+        .map(|name| {
             let marker = if *name == app.wallet.wallet_name {
                 " *"
             } else {
                 ""
             };
-            let style = if i == app.wallet.picker_index {
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
+            let style = Style::default();
             ListItem::new(format!("{}{}", name, marker)).style(style)
         })
         .collect();
@@ -67,6 +60,14 @@ fn render_wallet_picker(app: &App, frame: &mut Frame, area: Rect) {
         .title("Select Wallet")
         .border_style(Style::default().fg(Color::Cyan));
 
-    let list = List::new(items).block(block);
-    frame.render_widget(list, popup);
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+        .highlight_symbol(">> ");
+
+    let mut state = ListState::default();
+    if !wallets.is_empty() {
+        state.select(Some(app.wallet.picker_index.min(wallets.len().saturating_sub(1))));
+    }
+    frame.render_stateful_widget(list, popup, &mut state);
 }
