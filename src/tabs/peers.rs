@@ -146,15 +146,15 @@ pub fn render(app: &App, frame: &mut Frame, area: Rect) {
     render_query_help_popup(app, frame, area);
 }
 
-fn abbreviate_conn_type(ct: &str) -> String {
+fn abbreviate_conn_type(ct: &str) -> &str {
     match ct {
-        "outbound-full-relay" => "full".into(),
-        "block-relay-only" => "block".into(),
-        "inbound" => "in".into(),
-        "manual" => "manual".into(),
-        "feeler" => "feeler".into(),
-        "addr-fetch" => "addr".into(),
-        other => other.into(),
+        "outbound-full-relay" => "full",
+        "block-relay-only" => "block",
+        "inbound" => "in",
+        "manual" => "manual",
+        "feeler" => "feeler",
+        "addr-fetch" => "addr",
+        other => other,
     }
 }
 
