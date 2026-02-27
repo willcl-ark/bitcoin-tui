@@ -295,6 +295,10 @@ fn render_detail(
 }
 
 fn highlight_line<'a>(line: &str, query: &str) -> Line<'a> {
+    if !line.is_ascii() || !query.is_ascii() {
+        return Line::from(line.to_string());
+    }
+
     let lower = line.to_lowercase();
     let mut spans = Vec::new();
     let mut pos = 0;
