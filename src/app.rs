@@ -547,18 +547,19 @@ impl App {
         let Some(epoch) = self.zmq.tx_rate_epoch else {
             return;
         };
-        let bucket =
+        let elapsed_buckets =
             (now.duration_since(epoch).as_millis() / Self::TX_RATE_BUCKET_MS) as usize;
-        let current_len = self.zmq.tx_rate.len();
-        if bucket >= current_len {
-            let fill = (bucket + 1 - current_len).min(Self::TX_RATE_MAX_BUCKETS);
-            for _ in 0..fill {
-                self.zmq.tx_rate.push_back(0);
-            }
-            while self.zmq.tx_rate.len() > Self::TX_RATE_MAX_BUCKETS {
-                self.zmq.tx_rate.pop_front();
-            }
+        if elapsed_buckets == 0 {
+            return;
         }
+        let fill = elapsed_buckets.min(Self::TX_RATE_MAX_BUCKETS);
+        for _ in 0..fill {
+            self.zmq.tx_rate.push_back(0);
+        }
+        while self.zmq.tx_rate.len() > Self::TX_RATE_MAX_BUCKETS {
+            self.zmq.tx_rate.pop_front();
+        }
+        self.zmq.tx_rate_epoch = Some(now);
     }
 
     fn record_tx_rate(&mut self) {
