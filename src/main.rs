@@ -155,14 +155,17 @@ async fn run(
     zmq_addr: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     const EVENT_CHANNEL_CAPACITY: usize = 1024;
+    const POLL_WAKE_CHANNEL_CAPACITY: usize = 8;
 
     let mut app = App::default();
     let mut reader = EventStream::new();
     let mut tick = interval(Duration::from_millis(250));
 
     let (tx, mut rx) = mpsc::channel::<Event>(EVENT_CHANNEL_CAPACITY);
+    let (poll_wake_tx, poll_wake_rx) = mpsc::channel::<()>(POLL_WAKE_CHANNEL_CAPACITY);
+    let zmq_enabled = zmq_addr.is_some();
 
-    spawn_polling(rpc.clone(), tx.clone(), poll_interval);
+    spawn_polling(rpc.clone(), tx.clone(), poll_interval, zmq_enabled, poll_wake_rx);
 
     if let Some(addr) = zmq_addr {
         app.zmq.enabled = true;
@@ -298,6 +301,11 @@ async fn run(
             }
             event = rx.recv() => {
                 if let Some(event) = &event {
+                    if let Event::ZmqMessage(entry) = event
+                        && entry.topic == "hashblock"
+                    {
+                        let _ = poll_wake_tx.try_send(());
+                    }
                     tracing::trace!(event = ?std::mem::discriminant(event), "channel recv");
                 }
                 if let Some(event) = event {
@@ -314,53 +322,70 @@ async fn run(
     Ok(())
 }
 
-fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u64) {
+fn spawn_polling(
+    rpc: Arc<RpcClient>,
+    tx: mpsc::Sender<Event>,
+    interval_secs: u64,
+    zmq_enabled: bool,
+    mut poll_wake_rx: mpsc::Receiver<()>,
+) {
     tokio::spawn(async move {
         const RECENT_BLOCK_HISTORY: u64 = 72;
-        const SLOW_RPC_REFRESH_POLLS: u64 = 6;
+        const ZMQ_BLOCK_REFRESH_FALLBACK_SECS: u64 = 60;
         let mut last_tip: Option<String> = None;
         let mut last_height: Option<u64> = None;
-        let mut polls_since_slow_refresh: u64 = SLOW_RPC_REFRESH_POLLS;
+        let mut force_block_refresh = true;
+        let mut polls_since_block_refresh: u64 = 0;
+        let block_refresh_fallback_polls = if zmq_enabled {
+            (ZMQ_BLOCK_REFRESH_FALLBACK_SECS / interval_secs.max(1)).max(1)
+        } else {
+            1
+        };
         let mut cached_recent_blocks: Vec<crate::rpc_types::BlockStats> = Vec::new();
+        let mut cached_blockchain: Option<crate::rpc_types::BlockchainInfo> = None;
         let mut cached_mining: Option<crate::rpc_types::MiningInfo> = None;
         let mut cached_chaintips: Option<Vec<crate::rpc_types::ChainTip>> = None;
         let mut tip_pool_cache: std::collections::HashMap<String, Option<String>> =
             std::collections::HashMap::new();
         loop {
             tracing::debug!("rpc poll starting");
-            let (blockchain, network, mempool, peers, nettotals) = tokio::join!(
-                rpc.get_blockchain_info(),
+            let (network, mempool, peers, nettotals) = tokio::join!(
                 rpc.get_network_info(),
                 rpc.get_mempool_info(),
                 rpc.get_peer_info(),
                 rpc.get_net_totals(),
             );
 
-            let tip_changed = match (&blockchain, &last_tip) {
-                (Ok(info), Some(old_tip)) => info.bestblockhash != *old_tip,
-                (Ok(_), None) => true,
-                _ => false,
-            };
-
-            let needs_slow_refresh = tip_changed
-                || polls_since_slow_refresh >= SLOW_RPC_REFRESH_POLLS
+            let needs_block_refresh = force_block_refresh
+                || polls_since_block_refresh >= block_refresh_fallback_polls
+                || cached_blockchain.is_none()
                 || cached_mining.is_none()
                 || cached_chaintips.is_none();
 
-            let (mining, chaintips) = if needs_slow_refresh {
-                let (mining, chaintips) = tokio::join!(rpc.get_mining_info(), rpc.get_chain_tips(),);
+            let (blockchain, mining, chaintips) = if needs_block_refresh {
+                let (blockchain, mining, chaintips) = tokio::join!(
+                    rpc.get_blockchain_info(),
+                    rpc.get_mining_info(),
+                    rpc.get_chain_tips(),
+                );
+                if let Ok(info) = &blockchain {
+                    cached_blockchain = Some(info.clone());
+                }
                 if let Ok(info) = &mining {
                     cached_mining = Some(info.clone());
                 }
                 if let Ok(tips) = &chaintips {
                     cached_chaintips = Some(tips.clone());
                 }
-                polls_since_slow_refresh = 0;
-                (mining, chaintips)
+                polls_since_block_refresh = 0;
+                force_block_refresh = false;
+                (blockchain, mining, chaintips)
             } else {
-                polls_since_slow_refresh = polls_since_slow_refresh.saturating_add(1);
-                tracing::trace!("reusing cached mining/chaintips");
+                polls_since_block_refresh = polls_since_block_refresh.saturating_add(1);
                 (
+                    cached_blockchain
+                        .clone()
+                        .ok_or_else(|| "Blockchain info unavailable".to_string()),
                     cached_mining
                         .clone()
                         .ok_or_else(|| "Mining info unavailable".to_string()),
@@ -370,7 +395,12 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
                 )
             };
 
-            tracing::debug!(tip_changed, needs_slow_refresh, "rpc poll complete");
+            let tip_changed = match (&blockchain, &last_tip) {
+                (Ok(info), Some(old_tip)) => info.bestblockhash != *old_tip,
+                (Ok(_), None) => true,
+                _ => false,
+            };
+            tracing::debug!(tip_changed, needs_block_refresh, "rpc poll complete");
             let tip_info = if tip_changed {
                 blockchain
                     .as_ref()
@@ -463,7 +493,17 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
                     last_height = Some(height);
             }
 
-            tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(interval_secs)) => {}
+                wake = poll_wake_rx.recv() => {
+                    if wake.is_none() {
+                        break;
+                    }
+                    force_block_refresh = true;
+                    while poll_wake_rx.try_recv().is_ok() {}
+                    tracing::trace!("poll wake triggered by hashblock");
+                }
+            }
         }
     });
 }
