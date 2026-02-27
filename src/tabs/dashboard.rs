@@ -509,19 +509,6 @@ fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
-    let usage_ratio = if info.maxmempool > 0 {
-        info.usage as f64 / info.maxmempool as f64
-    } else {
-        0.0
-    };
-    let mem_color = if usage_ratio < 0.5 {
-        Color::Cyan
-    } else if usage_ratio < 0.8 {
-        Color::Yellow
-    } else {
-        Color::Red
-    };
-
     let lines = vec![
         kv("Transactions", fmt_number(info.size), Color::White),
         kv("Virtual Size", fmt_bytes(info.bytes), Color::White),
@@ -544,7 +531,6 @@ fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
     ];
 
     frame.render_widget(Paragraph::new(lines).block(block), area);
-    let _ = mem_color;
 }
 
 fn render_gauges(app: &App, frame: &mut Frame, area: Rect) {
