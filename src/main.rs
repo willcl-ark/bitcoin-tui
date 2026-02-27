@@ -174,12 +174,17 @@ async fn run(
 
         if app.transactions.searching {
             app.transactions.searching = false;
+            app.transactions.request_seq = app.transactions.request_seq.wrapping_add(1);
+            let request_id = app.transactions.request_seq;
+            app.transactions.in_flight_request = Some(request_id);
             let txid = app.transactions.search_input.clone();
             let rpc = rpc.clone();
             let tx = tx.clone();
             tokio::spawn(async move {
                 let result = search_tx(&rpc, &txid).await;
-                let _ = tx.send(Event::SearchComplete(Box::new(result))).await;
+                let _ = tx
+                    .send(Event::SearchComplete(request_id, Box::new(result)))
+                    .await;
             });
         }
 
@@ -201,6 +206,9 @@ async fn run(
 
         if app.wallet.browser.calling {
             app.wallet.browser.calling = false;
+            app.wallet.browser.request_seq = app.wallet.browser.request_seq.wrapping_add(1);
+            let request_id = app.wallet.browser.request_seq;
+            app.wallet.browser.in_flight_request = Some(request_id);
             let method = app.wallet.browser.methods[app.wallet.browser.selected]
                 .name
                 .clone();
@@ -221,12 +229,17 @@ async fn run(
                     }),
                     Err(e) => Err(e),
                 };
-                let _ = tx.send(Event::WalletRpcComplete(Box::new(result))).await;
+                let _ = tx
+                    .send(Event::WalletRpcComplete(request_id, Box::new(result)))
+                    .await;
             });
         }
 
         if app.rpc.calling {
             app.rpc.calling = false;
+            app.rpc.request_seq = app.rpc.request_seq.wrapping_add(1);
+            let request_id = app.rpc.request_seq;
+            app.rpc.in_flight_request = Some(request_id);
             let method = app.rpc.methods[app.rpc.selected].name.clone();
             let arg_text = app.rpc.arg_input.clone();
             let rpc = rpc.clone();
@@ -239,18 +252,23 @@ async fn run(
                     }),
                     Err(e) => Err(e),
                 };
-                let _ = tx.send(Event::RpcComplete(Box::new(result))).await;
+                let _ = tx.send(Event::RpcComplete(request_id, Box::new(result))).await;
             });
         }
 
         if let Some(action) = app.psbt.rpc_in_flight.take() {
+            app.psbt.request_seq = app.psbt.request_seq.wrapping_add(1);
+            let request_id = app.psbt.request_seq;
+            app.psbt.in_flight_request = Some(request_id);
             let psbt = app.psbt.psbt.trim().to_string();
             let wallet_name = app.wallet.wallet_name.clone();
             let rpc = rpc.clone();
             let tx = tx.clone();
             tokio::spawn(async move {
                 let result = run_psbt_action(&rpc, action, &psbt, &wallet_name).await;
-                let _ = tx.send(Event::PsbtRpcComplete(Box::new(result))).await;
+                let _ = tx
+                    .send(Event::PsbtRpcComplete(request_id, Box::new(result)))
+                    .await;
             });
         }
 

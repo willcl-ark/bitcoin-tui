@@ -124,11 +124,11 @@ pub enum Event {
     PollComplete(Box<PollResult>),
     RecentBlocksComplete(Box<Vec<BlockStats>>),
     ChainTipsEnriched(Box<Vec<ChainTip>>),
-    SearchComplete(Box<Result<SearchResult, String>>),
-    WalletRpcComplete(Box<Result<String, String>>),
-    RpcComplete(Box<Result<String, String>>),
+    SearchComplete(u64, Box<Result<SearchResult, String>>),
+    WalletRpcComplete(u64, Box<Result<String, String>>),
+    RpcComplete(u64, Box<Result<String, String>>),
     WalletListComplete(Box<Result<Vec<String>, String>>),
-    PsbtRpcComplete(Box<Result<PsbtRpcResult, String>>),
+    PsbtRpcComplete(u64, Box<Result<PsbtRpcResult, String>>),
     ZmqBlockComplete(Box<Result<String, String>>),
     ZmqMessage(Box<ZmqEntry>),
     ZmqError(String),
@@ -173,6 +173,8 @@ pub struct MethodBrowser {
     pub detail_search: String,
     pub detail_matches: Vec<u16>,
     pub detail_match_index: usize,
+    pub request_seq: u64,
+    pub in_flight_request: Option<u64>,
 }
 
 impl MethodBrowser {
@@ -200,6 +202,8 @@ impl MethodBrowser {
             detail_search: String::new(),
             detail_matches: Vec::new(),
             detail_match_index: 0,
+            request_seq: 0,
+            in_flight_request: None,
         }
     }
 
@@ -250,6 +254,8 @@ pub struct TransactionsTab {
     pub error: Option<String>,
     pub searching: bool,
     pub result_scroll: u16,
+    pub request_seq: u64,
+    pub in_flight_request: Option<u64>,
 }
 
 #[derive(Default)]
@@ -299,6 +305,8 @@ pub struct PsbtTab {
     pub picker_entries: Vec<PsbtFileEntry>,
     pub picker_selected: usize,
     pub save_name: String,
+    pub request_seq: u64,
+    pub in_flight_request: Option<u64>,
 }
 
 impl Default for PsbtTab {
@@ -316,6 +324,8 @@ impl Default for PsbtTab {
             picker_entries: Vec::new(),
             picker_selected: 0,
             save_name: "psbt.txt".to_string(),
+            request_seq: 0,
+            in_flight_request: None,
         }
     }
 }
@@ -429,8 +439,12 @@ impl App {
             Event::ChainTipsEnriched(tips) => {
                 self.chaintips = Some(*tips);
             }
-            Event::SearchComplete(result) => {
+            Event::SearchComplete(request_id, result) => {
+                if self.transactions.in_flight_request != Some(request_id) {
+                    return;
+                }
                 self.transactions.searching = false;
+                self.transactions.in_flight_request = None;
                 match *result {
                     Ok(sr) => {
                         self.transactions.error = None;
@@ -461,8 +475,12 @@ impl App {
                     }
                 }
             }
-            Event::PsbtRpcComplete(result) => {
+            Event::PsbtRpcComplete(request_id, result) => {
+                if self.psbt.in_flight_request != Some(request_id) {
+                    return;
+                }
                 self.psbt.rpc_in_flight = None;
+                self.psbt.in_flight_request = None;
                 match *result {
                     Ok(res) => {
                         self.psbt.error = None;
@@ -478,8 +496,12 @@ impl App {
                     }
                 }
             }
-            Event::WalletRpcComplete(result) => {
+            Event::WalletRpcComplete(request_id, result) => {
+                if self.wallet.browser.in_flight_request != Some(request_id) {
+                    return;
+                }
                 self.wallet.browser.calling = false;
+                self.wallet.browser.in_flight_request = None;
                 match *result {
                     Ok(json) => {
                         self.wallet.browser.error = None;
@@ -527,8 +549,12 @@ impl App {
                     }
                 }
             }
-            Event::RpcComplete(result) => {
+            Event::RpcComplete(request_id, result) => {
+                if self.rpc.in_flight_request != Some(request_id) {
+                    return;
+                }
                 self.rpc.calling = false;
+                self.rpc.in_flight_request = None;
                 match *result {
                     Ok(json) => {
                         self.rpc.error = None;
