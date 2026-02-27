@@ -4,6 +4,8 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 
 ![Dashboard](https://img.shields.io/badge/status-alpha-orange)
 
+[![asciicast](https://asciinema.org/a/IblYQEVxpRpEmEHD.svg)](https://asciinema.org/a/IblYQEVxpRpEmEHD)
+
 ## Features
 
 ### Tabs
