@@ -140,7 +140,7 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
     };
 
     let header = format!(
-        "{:<10}   {:>8}   {:>10}   {:>8}   {:>14}   {:<12}   {}",
+        "{:<10}   {:>8}   {:>10}   {:>8}   {:<12}   {:<12}   {}",
         "Height", "Txs", "Size", "Weight", "Fee", "Age", "Pool"
     );
     let mut lines = vec![Line::from(vec![Span::styled(
@@ -169,7 +169,7 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
             )),
             Span::styled(format!("{:>8}", fmt_weight(b.total_weight)), Style::default().fg(weight_color)),
             Span::raw(format!(
-                "   {:>14}   {:<12}   {}",
+                "   {:<12}   {:<12}   {}",
                 format_args!("{} sat/vB", b.avgfeerate),
                 fmt_relative_time(b.time),
                 pool,
