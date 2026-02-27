@@ -299,7 +299,7 @@ fn render_chain_tips(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
-    let header = Row::new(["Height", "Status", "Branch", "Hash"]).style(
+    let header = Row::new(["Height", "Status", "Branch", "Hash", "Pool"]).style(
         Style::default()
             .fg(Color::DarkGray)
             .add_modifier(Modifier::BOLD),
@@ -328,6 +328,7 @@ fn render_chain_tips(app: &App, frame: &mut Frame, area: Rect) {
                 Cell::from(tip.status.clone()).style(Style::default().fg(status_color)),
                 Cell::from(tip.branchlen.to_string()),
                 Cell::from(hash_display).style(Style::default().fg(Color::DarkGray)),
+                Cell::from(tip.pool.as_deref().unwrap_or("")),
             ])
         })
         .collect();
@@ -336,6 +337,7 @@ fn render_chain_tips(app: &App, frame: &mut Frame, area: Rect) {
         Constraint::Length(10),
         Constraint::Length(14),
         Constraint::Length(6),
+        Constraint::Length(19),
         Constraint::Min(10),
     ];
     let table = Table::new(rows, widths)

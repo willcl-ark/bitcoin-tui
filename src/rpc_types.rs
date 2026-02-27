@@ -115,6 +115,8 @@ pub struct ChainTip {
     pub hash: String,
     pub branchlen: u64,
     pub status: String,
+    #[serde(default)]
+    pub pool: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Default)]

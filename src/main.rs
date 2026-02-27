@@ -299,6 +299,8 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
         let mut last_tip: Option<String> = None;
         let mut last_height: Option<u64> = None;
         let mut cached_recent_blocks: Vec<crate::rpc_types::BlockStats> = Vec::new();
+        let mut tip_pool_cache: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
         loop {
             tracing::debug!("rpc poll starting");
             let (blockchain, network, mempool, mining, peers, nettotals, chaintips) = tokio::join!(
@@ -324,6 +326,22 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                     .map(|info| (info.bestblockhash.clone(), info.blocks))
             } else {
                 None
+            };
+
+            let chaintips = match chaintips {
+                Ok(mut tips) => {
+                    for tip in &mut tips {
+                        if let Some(cached) = tip_pool_cache.get(&tip.hash) {
+                            tip.pool = cached.clone();
+                        } else {
+                            let pool = get_block_pool_by_hash(&rpc, &tip.hash).await;
+                            tip_pool_cache.insert(tip.hash.clone(), pool.clone());
+                            tip.pool = pool;
+                        }
+                    }
+                    Ok(tips)
+                }
+                Err(e) => Err(e),
             };
 
             let result = PollResult {
@@ -384,6 +402,10 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
 
 async fn get_block_pool(rpc: &rpc::RpcClient, height: u64) -> Option<String> {
     let hash = rpc.get_block_hash(height).await.ok()?;
+    get_block_pool_by_hash(rpc, &hash).await
+}
+
+async fn get_block_pool_by_hash(rpc: &rpc::RpcClient, hash: &str) -> Option<String> {
     let block: serde_json::Value = rpc
         .call_raw("getblock", serde_json::json!([hash, 1]), None)
         .await
