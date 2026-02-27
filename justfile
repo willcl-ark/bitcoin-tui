@@ -16,15 +16,15 @@ buildc:
 run:
     nix run .# -- --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS --zmqhost $RPCHOST --zmqport 29000
 
+# Run using cargo, RPCHOST, RPCUSER and RPCPASS
+[group('run')]
+runc:
+    cargo run -- --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS --zmqhost $RPCHOST --zmqport 29000
+
 # Debug using nix run
 [group('dev')]
 debug:
     nix run .# -- --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS --zmqhost $RPCHOST --zmqport 29000 --debug 2> debug.log
-
-# Run using cargo, RPCHOST, RPCUSER and RPCPASS
-[group('run')]
-runc:
-    cargo run -- --host $RPCHOST --rpcuser $RPCUSER --rpcpassword $RPCPASS --zmqhost $RPCHOST --zmqport 29000 --debug 2> debug.log
 
 # Build, check and clippy
 [group('lint')]
