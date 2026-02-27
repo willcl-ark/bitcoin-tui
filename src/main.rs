@@ -328,21 +328,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 None
             };
 
-            let chaintips = match chaintips {
-                Ok(mut tips) => {
-                    for tip in &mut tips {
-                        if let Some(cached) = tip_pool_cache.get(&tip.hash) {
-                            tip.pool = cached.clone();
-                        } else {
-                            let pool = get_block_pool_by_hash(&rpc, &tip.hash).await;
-                            tip_pool_cache.insert(tip.hash.clone(), pool.clone());
-                            tip.pool = pool;
-                        }
-                    }
-                    Ok(tips)
-                }
-                Err(e) => Err(e),
-            };
+            let tips_to_enrich = chaintips.as_ref().ok().cloned();
 
             let result = PollResult {
                 blockchain,
@@ -357,6 +343,23 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
 
             if tx.send(Event::PollComplete(Box::new(result))).is_err() {
                 break;
+            }
+
+            if let Some(mut tips) = tips_to_enrich {
+                let mut changed = false;
+                for tip in &mut tips {
+                    if let Some(cached) = tip_pool_cache.get(&tip.hash) {
+                        tip.pool = cached.clone();
+                    } else {
+                        let pool = get_block_pool_by_hash(&rpc, &tip.hash).await;
+                        tip_pool_cache.insert(tip.hash.clone(), pool.clone());
+                        tip.pool = pool;
+                        changed = true;
+                    }
+                }
+                if changed {
+                    let _ = tx.send(Event::ChainTipsEnriched(Box::new(tips)));
+                }
             }
 
             if let Some((tip_hash, height)) = tip_info {

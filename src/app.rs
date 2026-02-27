@@ -123,6 +123,7 @@ pub enum Event {
     Tick,
     PollComplete(Box<PollResult>),
     RecentBlocksComplete(Box<Vec<BlockStats>>),
+    ChainTipsEnriched(Box<Vec<ChainTip>>),
     SearchComplete(Box<Result<SearchResult, String>>),
     WalletRpcComplete(Box<Result<String, String>>),
     RpcComplete(Box<Result<String, String>>),
@@ -424,6 +425,9 @@ impl App {
             Event::PollComplete(result) => self.handle_poll(*result),
             Event::RecentBlocksComplete(blocks) => {
                 self.recent_blocks = *blocks;
+            }
+            Event::ChainTipsEnriched(tips) => {
+                self.chaintips = Some(*tips);
             }
             Event::SearchComplete(result) => {
                 self.transactions.searching = false;
