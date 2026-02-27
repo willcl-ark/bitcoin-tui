@@ -510,7 +510,7 @@ fn render_tx_rate(app: &App, frame: &mut Frame, area: Rect) {
     let sparkline = Sparkline::default()
         .block(block)
         .data(&data)
-        .style(Style::default().fg(Color::Cyan));
+        .style(Style::default().fg(Color::Magenta));
     frame.render_widget(sparkline, area);
 }
 

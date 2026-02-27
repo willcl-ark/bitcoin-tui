@@ -156,7 +156,7 @@ async fn run(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App::default();
     let mut reader = EventStream::new();
-    let mut tick = interval(Duration::from_secs(1));
+    let mut tick = interval(Duration::from_millis(250));
 
     let (tx, mut rx) = mpsc::unbounded_channel::<Event>();
 
