@@ -205,6 +205,10 @@ pub fn completion_candidates(input: &str, fields: &[String]) -> Vec<String> {
 }
 
 pub fn apply(peers: &[PeerInfo], query: &PeerQuery) -> Vec<usize> {
+    if query.filters.is_empty() && query.sort.is_none() {
+        return (0..peers.len()).collect();
+    }
+
     let rows: Vec<Value> = peers
         .iter()
         .map(|p| serde_json::to_value(p).unwrap_or(Value::Null))
