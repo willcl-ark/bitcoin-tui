@@ -116,7 +116,18 @@ impl RpcClient {
         tracing::debug!(method, %params, wallet, "rpc request");
         let auth = self.auth_header().await?;
         let url = match wallet {
-            Some(name) if !name.is_empty() => format!("{}/wallet/{}", self.url, name),
+            Some(name) if !name.is_empty() => {
+                let mut wallet_url = reqwest::Url::parse(&self.url)
+                    .map_err(|e| format!("Invalid RPC URL {}: {}", self.url, e))?;
+                {
+                    let mut segments = wallet_url.path_segments_mut().map_err(|_| {
+                        format!("RPC URL does not support path segments: {}", self.url)
+                    })?;
+                    segments.push("wallet");
+                    segments.push(name);
+                }
+                wallet_url.to_string()
+            }
             _ => self.url.clone(),
         };
         let body = json!({
