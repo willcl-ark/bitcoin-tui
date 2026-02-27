@@ -503,10 +503,10 @@ fn render_mem_gauge(app: &App, frame: &mut Frame, area: Rect) {
 
 fn render_tx_rate(app: &App, frame: &mut Frame, area: Rect) {
     let data: Vec<u64> = app.zmq.tx_rate.iter().copied().collect();
-    let rate = data.last().copied().unwrap_or(0);
+    let tps: u64 = data.iter().rev().take(4).sum();
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!("TX Rate  {} tx/s", rate));
+        .title(format!("TX Rate  {} tx/s", tps));
     let sparkline = Sparkline::default()
         .block(block)
         .data(&data)
