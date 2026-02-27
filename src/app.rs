@@ -299,6 +299,7 @@ pub struct PsbtTab {
     pub error: Option<String>,
     pub scroll: u16,
     pub rpc_in_flight: Option<PsbtRpcAction>,
+    pub running_action: Option<PsbtRpcAction>,
     pub picker_open: bool,
     pub picker_mode: PsbtFileMode,
     pub picker_dir: PathBuf,
@@ -318,6 +319,7 @@ impl Default for PsbtTab {
             error: None,
             scroll: 0,
             rpc_in_flight: None,
+            running_action: None,
             picker_open: false,
             picker_mode: PsbtFileMode::Load,
             picker_dir,
@@ -481,6 +483,7 @@ impl App {
                 }
                 self.psbt.rpc_in_flight = None;
                 self.psbt.in_flight_request = None;
+                self.psbt.running_action = None;
                 match *result {
                     Ok(res) => {
                         self.psbt.error = None;
@@ -1068,19 +1071,29 @@ impl App {
             }
             KeyCode::Char('l') => self.open_psbt_picker(PsbtFileMode::Load),
             KeyCode::Char('s') => self.open_psbt_picker(PsbtFileMode::Save),
-            KeyCode::Char('a') if !self.psbt.psbt.trim().is_empty() => {
+            KeyCode::Char('a')
+                if !self.psbt.psbt.trim().is_empty() && self.psbt.in_flight_request.is_none() =>
+            {
                 self.psbt.rpc_in_flight = Some(PsbtRpcAction::Analyze);
             }
-            KeyCode::Char('d') if !self.psbt.psbt.trim().is_empty() => {
+            KeyCode::Char('d')
+                if !self.psbt.psbt.trim().is_empty() && self.psbt.in_flight_request.is_none() =>
+            {
                 self.psbt.rpc_in_flight = Some(PsbtRpcAction::Decode);
             }
-            KeyCode::Char('p') if !self.psbt.psbt.trim().is_empty() => {
+            KeyCode::Char('p')
+                if !self.psbt.psbt.trim().is_empty() && self.psbt.in_flight_request.is_none() =>
+            {
                 self.psbt.rpc_in_flight = Some(PsbtRpcAction::WalletProcess);
             }
-            KeyCode::Char('f') if !self.psbt.psbt.trim().is_empty() => {
+            KeyCode::Char('f')
+                if !self.psbt.psbt.trim().is_empty() && self.psbt.in_flight_request.is_none() =>
+            {
                 self.psbt.rpc_in_flight = Some(PsbtRpcAction::Finalize);
             }
-            KeyCode::Char('u') if !self.psbt.psbt.trim().is_empty() => {
+            KeyCode::Char('u')
+                if !self.psbt.psbt.trim().is_empty() && self.psbt.in_flight_request.is_none() =>
+            {
                 self.psbt.rpc_in_flight = Some(PsbtRpcAction::UtxoUpdate);
             }
             _ => {}

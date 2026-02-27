@@ -256,10 +256,11 @@ async fn run(
             });
         }
 
-        if let Some(action) = app.psbt.rpc_in_flight.take() {
+        if app.psbt.in_flight_request.is_none() && let Some(action) = app.psbt.rpc_in_flight.take() {
             app.psbt.request_seq = app.psbt.request_seq.wrapping_add(1);
             let request_id = app.psbt.request_seq;
             app.psbt.in_flight_request = Some(request_id);
+            app.psbt.running_action = Some(action);
             let psbt = app.psbt.psbt.trim().to_string();
             let wallet_name = app.wallet.wallet_name.clone();
             let rpc = rpc.clone();

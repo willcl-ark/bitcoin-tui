@@ -67,7 +67,7 @@ fn render_output_panel(app: &App, frame: &mut Frame, area: Rect) {
         )));
     }
 
-    if let Some(action) = app.psbt.rpc_in_flight {
+    if let Some(action) = app.psbt.running_action {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!("Running {}...", action_label(action)),
