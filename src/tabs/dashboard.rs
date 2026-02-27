@@ -114,7 +114,7 @@ fn render_kpi(frame: &mut Frame, area: Rect, title: &str, value: &str, color: Co
 }
 
 fn render_middle(app: &App, frame: &mut Frame, area: Rect) {
-    let cols = Layout::horizontal([Constraint::Ratio(3, 5), Constraint::Ratio(2, 5)]).split(area);
+    let cols = Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
     let left =
         Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(cols[0]);
     render_recent_blocks(app, frame, left[0]);
