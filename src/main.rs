@@ -154,11 +154,13 @@ async fn run(
     poll_interval: u64,
     zmq_addr: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    const EVENT_CHANNEL_CAPACITY: usize = 1024;
+
     let mut app = App::default();
     let mut reader = EventStream::new();
     let mut tick = interval(Duration::from_millis(250));
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Event>();
+    let (tx, mut rx) = mpsc::channel::<Event>(EVENT_CHANNEL_CAPACITY);
 
     spawn_polling(rpc.clone(), tx.clone(), poll_interval);
 
@@ -177,7 +179,7 @@ async fn run(
             let tx = tx.clone();
             tokio::spawn(async move {
                 let result = search_tx(&rpc, &txid).await;
-                let _ = tx.send(Event::SearchComplete(Box::new(result)));
+                let _ = tx.send(Event::SearchComplete(Box::new(result))).await;
             });
         }
 
@@ -193,7 +195,7 @@ async fn run(
                         serde_json::from_value::<Vec<String>>(v)
                             .map_err(|e| format!("Failed to parse listwallets: {}", e))
                     });
-                let _ = tx.send(Event::WalletListComplete(Box::new(result)));
+                let _ = tx.send(Event::WalletListComplete(Box::new(result))).await;
             });
         }
 
@@ -219,7 +221,7 @@ async fn run(
                     }),
                     Err(e) => Err(e),
                 };
-                let _ = tx.send(Event::WalletRpcComplete(Box::new(result)));
+                let _ = tx.send(Event::WalletRpcComplete(Box::new(result))).await;
             });
         }
 
@@ -237,7 +239,7 @@ async fn run(
                     }),
                     Err(e) => Err(e),
                 };
-                let _ = tx.send(Event::RpcComplete(Box::new(result)));
+                let _ = tx.send(Event::RpcComplete(Box::new(result))).await;
             });
         }
 
@@ -248,7 +250,7 @@ async fn run(
             let tx = tx.clone();
             tokio::spawn(async move {
                 let result = run_psbt_action(&rpc, action, &psbt, &wallet_name).await;
-                let _ = tx.send(Event::PsbtRpcComplete(Box::new(result)));
+                let _ = tx.send(Event::PsbtRpcComplete(Box::new(result))).await;
             });
         }
 
@@ -260,7 +262,7 @@ async fn run(
                     .call_raw("getblock", serde_json::json!([block_hash, 1]), None)
                     .await
                     .map(|v| serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()));
-                let _ = tx.send(Event::ZmqBlockComplete(Box::new(result)));
+                let _ = tx.send(Event::ZmqBlockComplete(Box::new(result))).await;
             });
         }
 
@@ -293,7 +295,7 @@ async fn run(
     Ok(())
 }
 
-fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval_secs: u64) {
+fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u64) {
     tokio::spawn(async move {
         const RECENT_BLOCK_HISTORY: u64 = 72;
         let mut last_tip: Option<String> = None;
@@ -341,7 +343,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                 recent_blocks: None,
             };
 
-            if tx.send(Event::PollComplete(Box::new(result))).is_err() {
+            if tx.send(Event::PollComplete(Box::new(result))).await.is_err() {
                 break;
             }
 
@@ -358,7 +360,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                     }
                 }
                 if changed {
-                    let _ = tx.send(Event::ChainTipsEnriched(Box::new(tips)));
+                    let _ = tx.send(Event::ChainTipsEnriched(Box::new(tips))).await;
                 }
             }
 
@@ -386,7 +388,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                                 updated.push(stats);
                                 updated.sort_by_key(|b| b.height);
                                 let snapshot = updated.clone();
-                                let _ = tx.send(Event::RecentBlocksComplete(Box::new(snapshot)));
+                                let _ = tx.send(Event::RecentBlocksComplete(Box::new(snapshot))).await;
                             }
                         }
                     } else {
@@ -405,7 +407,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
 
                     if !updated.is_empty() {
                         cached_recent_blocks = updated.clone();
-                        let _ = tx.send(Event::RecentBlocksComplete(Box::new(updated)));
+                        let _ = tx.send(Event::RecentBlocksComplete(Box::new(updated))).await;
                     }
 
                     last_tip = Some(tip_hash);
@@ -486,7 +488,7 @@ fn extract_pool_name(coinbase_hex: &str) -> Option<String> {
     }
 }
 
-fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
+fn spawn_zmq(addr: String, tx: mpsc::Sender<Event>) {
     use zeromq::{Socket, SocketRecv, SubSocket, ZmqMessage};
 
     tokio::spawn(async move {
@@ -495,14 +497,14 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
         // silently suppress notifications.
         if let Err(e) = socket.subscribe("").await {
             tracing::error!(error = %e, "zmq subscribe failed");
-            let _ = tx.send(Event::ZmqError(format!("subscribe all: {}", e)));
+            let _ = tx.send(Event::ZmqError(format!("subscribe all: {}", e))).await;
             return;
         }
         tracing::debug!("zmq subscribed to all topics");
         tracing::info!(addr, "zmq connecting");
         if let Err(e) = socket.connect(&addr).await {
             tracing::error!(addr, error = %e, "zmq connect failed");
-            let _ = tx.send(Event::ZmqError(format!("connect {}: {}", addr, e)));
+            let _ = tx.send(Event::ZmqError(format!("connect {}: {}", addr, e))).await;
             return;
         }
 
@@ -512,7 +514,7 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
                 Ok(msg) => msg,
                 Err(e) => {
                     tracing::error!(error = %e, "zmq recv failed");
-                    let _ = tx.send(Event::ZmqError(format!("recv: {}", e)));
+                    let _ = tx.send(Event::ZmqError(format!("recv: {}", e))).await;
                     break;
                 }
             };
@@ -536,6 +538,7 @@ fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
 
             if tx
                 .send(Event::ZmqMessage(Box::new(ZmqEntry { topic, hash })))
+                .await
                 .is_err()
             {
                 break;
