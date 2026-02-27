@@ -359,7 +359,6 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
                 peers,
                 nettotals,
                 chaintips,
-                recent_blocks: None,
             };
 
             if tx.send(Event::PollComplete(Box::new(result))).await.is_err() {

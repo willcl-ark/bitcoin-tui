@@ -97,7 +97,6 @@ pub struct PollResult {
     pub peers: Result<Vec<PeerInfo>, String>,
     pub nettotals: Result<NetTotals, String>,
     pub chaintips: Result<Vec<ChainTip>, String>,
-    pub recent_blocks: Option<Vec<BlockStats>>,
 }
 
 pub enum SearchResult {
@@ -678,9 +677,6 @@ impl App {
                 self.rpc_error = Some(e);
             }
             _ => {}
-        }
-        if let Some(blocks) = result.recent_blocks {
-            self.recent_blocks = blocks;
         }
         let _ = had_error;
     }
