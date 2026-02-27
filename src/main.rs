@@ -317,29 +317,60 @@ async fn run(
 fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u64) {
     tokio::spawn(async move {
         const RECENT_BLOCK_HISTORY: u64 = 72;
+        const SLOW_RPC_REFRESH_POLLS: u64 = 6;
         let mut last_tip: Option<String> = None;
         let mut last_height: Option<u64> = None;
+        let mut polls_since_slow_refresh: u64 = SLOW_RPC_REFRESH_POLLS;
         let mut cached_recent_blocks: Vec<crate::rpc_types::BlockStats> = Vec::new();
+        let mut cached_mining: Option<crate::rpc_types::MiningInfo> = None;
+        let mut cached_chaintips: Option<Vec<crate::rpc_types::ChainTip>> = None;
         let mut tip_pool_cache: std::collections::HashMap<String, Option<String>> =
             std::collections::HashMap::new();
         loop {
             tracing::debug!("rpc poll starting");
-            let (blockchain, network, mempool, mining, peers, nettotals, chaintips) = tokio::join!(
+            let (blockchain, network, mempool, peers, nettotals) = tokio::join!(
                 rpc.get_blockchain_info(),
                 rpc.get_network_info(),
                 rpc.get_mempool_info(),
-                rpc.get_mining_info(),
                 rpc.get_peer_info(),
                 rpc.get_net_totals(),
-                rpc.get_chain_tips(),
             );
-            tracing::debug!("rpc poll complete");
 
             let tip_changed = match (&blockchain, &last_tip) {
                 (Ok(info), Some(old_tip)) => info.bestblockhash != *old_tip,
                 (Ok(_), None) => true,
                 _ => false,
             };
+
+            let needs_slow_refresh = tip_changed
+                || polls_since_slow_refresh >= SLOW_RPC_REFRESH_POLLS
+                || cached_mining.is_none()
+                || cached_chaintips.is_none();
+
+            let (mining, chaintips) = if needs_slow_refresh {
+                let (mining, chaintips) = tokio::join!(rpc.get_mining_info(), rpc.get_chain_tips(),);
+                if let Ok(info) = &mining {
+                    cached_mining = Some(info.clone());
+                }
+                if let Ok(tips) = &chaintips {
+                    cached_chaintips = Some(tips.clone());
+                }
+                polls_since_slow_refresh = 0;
+                (mining, chaintips)
+            } else {
+                polls_since_slow_refresh = polls_since_slow_refresh.saturating_add(1);
+                tracing::trace!("reusing cached mining/chaintips");
+                (
+                    cached_mining
+                        .clone()
+                        .ok_or_else(|| "Mining info unavailable".to_string()),
+                    cached_chaintips
+                        .clone()
+                        .ok_or_else(|| "Chain tips unavailable".to_string()),
+                )
+            };
+
+            tracing::debug!(tip_changed, needs_slow_refresh, "rpc poll complete");
             let tip_info = if tip_changed {
                 blockchain
                     .as_ref()
