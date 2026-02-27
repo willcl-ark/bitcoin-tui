@@ -400,6 +400,7 @@ fn extract_pool_name(coinbase_hex: &str) -> Option<String> {
         .filter_map(|i| u8::from_str_radix(coinbase_hex.get(i..i + 2)?, 16).ok())
         .collect();
 
+    // Try /Name/ pattern first (most common pool tag convention)
     let mut last_match = None;
     let mut i = 0;
     while i < bytes.len() {
@@ -415,7 +416,35 @@ fn extract_pool_name(coinbase_hex: &str) -> Option<String> {
         }
         i += 1;
     }
-    last_match
+    if last_match.is_some() {
+        return last_match;
+    }
+
+    // Fallback: longest printable ASCII run (e.g. "Powered by Luxor Tech")
+    let mut best = "";
+    let mut start = None;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b >= 0x20 && b <= 0x7e {
+            if start.is_none() {
+                start = Some(i);
+            }
+        } else if let Some(s) = start.take() {
+            if i - s > best.len() {
+                best = std::str::from_utf8(&bytes[s..i]).unwrap_or("");
+            }
+        }
+    }
+    if let Some(s) = start {
+        if bytes.len() - s > best.len() {
+            best = std::str::from_utf8(&bytes[s..]).unwrap_or("");
+        }
+    }
+
+    if best.len() >= 4 {
+        Some(best.trim().to_string())
+    } else {
+        None
+    }
 }
 
 fn spawn_zmq(addr: String, tx: mpsc::UnboundedSender<Event>) {
