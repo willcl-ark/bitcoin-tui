@@ -12,6 +12,17 @@ pub fn fmt_number(n: u64) -> String {
     result
 }
 
+pub fn fmt_weight(n: u64) -> String {
+    let n = n as f64;
+    if n >= 1_000_000.0 {
+        format!("{:.1} MWU", n / 1_000_000.0)
+    } else if n >= 1_000.0 {
+        format!("{:.0} KWU", n / 1_000.0)
+    } else {
+        format!("{} WU", n as u64)
+    }
+}
+
 pub fn fmt_bytes(n: u64) -> String {
     const GB: f64 = 1_073_741_824.0;
     const MB: f64 = 1_048_576.0;

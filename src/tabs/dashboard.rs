@@ -167,7 +167,7 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
                 fmt_number(b.txs),
                 fmt_bytes(b.total_size),
             )),
-            Span::styled(format!("{:>8}", fmt_bytes(b.total_weight)), Style::default().fg(weight_color)),
+            Span::styled(format!("{:>8}", fmt_weight(b.total_weight)), Style::default().fg(weight_color)),
             Span::raw(format!(
                 " {:>14} {:<12} {}",
                 format_args!("{} sat/vB", b.avgfeerate),
