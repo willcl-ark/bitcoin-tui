@@ -267,38 +267,50 @@ fn render_chain_tips(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
-    let mut lines = vec![Line::from(vec![Span::styled(
-        format!(
-            "{:<10} {:<12} {:>8} {}",
-            "Height", "Status", "Branch", "Hash"
-        ),
-        Style::default().fg(Color::DarkGray),
-    )])];
+    let header = Row::new(["Height", "Status", "Branch", "Hash"]).style(
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD),
+    );
 
-    let max_rows = area.height.saturating_sub(3) as usize;
+    let max_rows = area.height.saturating_sub(4) as usize;
     let mut sorted: Vec<_> = tips.iter().collect();
     sorted.sort_by(|a, b| b.height.cmp(&a.height));
 
-    for tip in sorted.iter().take(max_rows) {
-        let status_color = match tip.status.as_str() {
-            "active" => Color::Green,
-            "valid-fork" | "valid-headers" => Color::Yellow,
-            _ => Color::Red,
-        };
-        let hash_display = if tip.hash.len() > 16 {
-            format!("{}…{}", &tip.hash[..8], &tip.hash[tip.hash.len() - 8..])
-        } else {
-            tip.hash.clone()
-        };
-        lines.push(Line::from(vec![
-            Span::raw(format!("{:<10} ", tip.height)),
-            Span::styled(format!("{:<12} ", tip.status), Style::default().fg(status_color)),
-            Span::raw(format!("{:>8} ", tip.branchlen)),
-            Span::styled(hash_display, Style::default().fg(Color::DarkGray)),
-        ]));
-    }
+    let rows: Vec<Row> = sorted
+        .iter()
+        .take(max_rows)
+        .map(|tip| {
+            let status_color = match tip.status.as_str() {
+                "active" => Color::Green,
+                "valid-fork" | "valid-headers" => Color::Yellow,
+                _ => Color::Red,
+            };
+            let hash_display = if tip.hash.len() > 16 {
+                format!("{}…{}", &tip.hash[..8], &tip.hash[tip.hash.len() - 8..])
+            } else {
+                tip.hash.clone()
+            };
+            Row::new(vec![
+                Cell::from(tip.height.to_string()),
+                Cell::from(tip.status.clone()).style(Style::default().fg(status_color)),
+                Cell::from(tip.branchlen.to_string()),
+                Cell::from(hash_display).style(Style::default().fg(Color::DarkGray)),
+            ])
+        })
+        .collect();
 
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    let widths = [
+        Constraint::Length(10),
+        Constraint::Length(14),
+        Constraint::Length(6),
+        Constraint::Min(10),
+    ];
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(block)
+        .column_spacing(1);
+    frame.render_widget(table, area);
 }
 
 
