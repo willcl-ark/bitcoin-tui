@@ -363,6 +363,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
             }
 
             if let Some((tip_hash, height)) = tip_info {
+                    let is_cold_start = last_height.is_none();
                     let mut updated = cached_recent_blocks.clone();
                     let mut start_height = height.saturating_sub(RECENT_BLOCK_HISTORY - 1);
 
@@ -377,10 +378,23 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::UnboundedSender<Event>, interval
                         updated.clear();
                     }
 
-                    for h in start_height..=height {
-                        if let Ok(mut stats) = rpc.get_block_stats(h).await {
-                            stats.pool = get_block_pool(&rpc, h).await;
-                            updated.push(stats);
+                    if is_cold_start {
+                        // Fetch from tip downward, sending incremental updates
+                        for h in (start_height..=height).rev() {
+                            if let Ok(mut stats) = rpc.get_block_stats(h).await {
+                                stats.pool = get_block_pool(&rpc, h).await;
+                                updated.push(stats);
+                                updated.sort_by_key(|b| b.height);
+                                let snapshot = updated.clone();
+                                let _ = tx.send(Event::RecentBlocksComplete(Box::new(snapshot)));
+                            }
+                        }
+                    } else {
+                        for h in start_height..=height {
+                            if let Ok(mut stats) = rpc.get_block_stats(h).await {
+                                stats.pool = get_block_pool(&rpc, h).await;
+                                updated.push(stats);
+                            }
                         }
                     }
 
