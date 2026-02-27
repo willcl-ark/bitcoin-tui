@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
@@ -139,53 +139,66 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
-    let header = format!(
-        "{:<10}   {:>8}   {:>10}   {:>8}   {:<12}   {:<12}   {}",
-        "Height", "Txs", "Size", "Weight", "Fee", "Age", "Pool"
-    );
-    let mut lines = vec![Line::from(vec![Span::styled(
-        header,
-        Style::default().fg(Color::DarkGray),
-    )])];
+    let right = |s: String| Line::from(s).alignment(Alignment::Right);
+    let header = Row::new(["Height", "Txs", "Size", "Weight", "Fee", "Age", "Pool"].map(|s| {
+        Cell::from(Line::from(s).alignment(if s == "Pool" {
+            Alignment::Left
+        } else {
+            Alignment::Right
+        }))
+    }))
+    .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
 
     const MAX_WEIGHT: f64 = 4_000_000.0;
-    let max_rows = area.height.saturating_sub(3) as usize;
-    for b in app.recent_blocks.iter().rev().take(max_rows) {
-        let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0);
-        let weight_color = if pct >= 75.0 {
-            Color::Green
-        } else if pct >= 50.0 {
-            Color::Yellow
-        } else {
-            Color::Red
-        };
-        let pool = b.pool.as_deref().unwrap_or("");
-        lines.push(Line::from(vec![
-            Span::raw(format!(
-                "{:<10}   {:>8}   {:>10}   ",
-                b.height,
-                fmt_number(b.txs),
-                fmt_bytes(b.total_size),
-            )),
-            Span::styled(format!("{:>8}", fmt_weight(b.total_weight)), Style::default().fg(weight_color)),
-            Span::raw(format!(
-                "   {:<12}   {:<12}   {}",
-                format_args!("{} sat/vB", b.avgfeerate),
-                fmt_relative_time(b.time),
-                pool,
-            )),
-        ]));
-    }
-
-    if lines.len() == 1 {
-        lines.push(Line::from(format!(
+    let max_rows = area.height.saturating_sub(4) as usize;
+    let rows: Vec<Row> = if app.recent_blocks.is_empty() {
+        vec![Row::new(vec![Cell::from(format!(
             "Current tip: {} ({})",
             info.blocks,
             fmt_relative_time(info.time)
-        )));
-    }
+        ))])]
+    } else {
+        app.recent_blocks
+            .iter()
+            .rev()
+            .take(max_rows)
+            .map(|b| {
+                let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0);
+                let weight_color = if pct >= 75.0 {
+                    Color::Green
+                } else if pct >= 50.0 {
+                    Color::Yellow
+                } else {
+                    Color::Red
+                };
+                Row::new(vec![
+                    Cell::from(right(b.height.to_string())),
+                    Cell::from(right(fmt_number(b.txs))),
+                    Cell::from(right(fmt_bytes(b.total_size))),
+                    Cell::from(right(fmt_weight(b.total_weight)))
+                        .style(Style::default().fg(weight_color)),
+                    Cell::from(right(format!("{} sat/vB", b.avgfeerate))),
+                    Cell::from(right(fmt_relative_time(b.time))),
+                    Cell::from(b.pool.as_deref().unwrap_or("")),
+                ])
+            })
+            .collect()
+    };
 
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    let widths = [
+        Constraint::Length(10),
+        Constraint::Length(8),
+        Constraint::Length(10),
+        Constraint::Length(8),
+        Constraint::Length(12),
+        Constraint::Length(12),
+        Constraint::Min(10),
+    ];
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(block)
+        .column_spacing(2);
+    frame.render_widget(table, area);
 }
 
 fn render_block_chart(app: &App, frame: &mut Frame, area: Rect) {
