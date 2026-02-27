@@ -44,8 +44,6 @@ fn render_tab_bar(app: &App, frame: &mut Frame, area: Rect) {
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
     match app.tab {
         Tab::Dashboard => crate::tabs::dashboard::render(app, frame, area),
-        Tab::Mempool => crate::tabs::mempool::render(app, frame, area),
-        Tab::Network => crate::tabs::network::render(app, frame, area),
         Tab::Peers => crate::tabs::peers::render(app, frame, area),
         Tab::Psbt => crate::tabs::psbt::render(app, frame, area),
         Tab::Transactions => crate::tabs::transactions::render(app, frame, area),
@@ -63,10 +61,6 @@ fn render_footer(app: &App, frame: &mut Frame, area: Rect) {
             Focus::TabBar => vec![
                 Span::styled("D", hl),
                 Span::raw("ashboard "),
-                Span::styled("M", hl),
-                Span::raw("empool "),
-                Span::styled("N", hl),
-                Span::raw("etwork "),
                 Span::styled("P", hl),
                 Span::raw("eers "),
                 Span::raw("PS"),

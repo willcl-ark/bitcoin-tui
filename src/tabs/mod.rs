@@ -1,7 +1,5 @@
 pub mod dashboard;
-pub mod mempool;
 pub mod method_browser;
-pub mod network;
 pub mod peers;
 pub mod psbt;
 pub mod rpc;

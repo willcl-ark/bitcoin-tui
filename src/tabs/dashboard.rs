@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, Paragraph},
+    widgets::{Bar, BarChart, BarGroup, Block, Borders, Cell, Gauge, Paragraph, Row, Table},
 };
 
 use crate::app::App;
@@ -94,11 +94,17 @@ fn render_kpi(frame: &mut Frame, area: Rect, title: &str, value: &str, color: Co
 
 fn render_middle(app: &App, frame: &mut Frame, area: Rect) {
     let cols = Layout::horizontal([Constraint::Ratio(3, 5), Constraint::Ratio(2, 5)]).split(area);
-    let left = Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(cols[0]);
+    let left = Layout::vertical([
+        Constraint::Ratio(1, 3),
+        Constraint::Ratio(1, 3),
+        Constraint::Ratio(1, 3),
+    ])
+    .split(cols[0]);
     render_recent_blocks(app, frame, left[0]);
-    render_chain_details(app, frame, left[1]);
+    render_block_chart(app, frame, left[1]);
+    render_chain_details(app, frame, left[2]);
 
-    let right = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(cols[1]);
+    let right = Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(cols[1]);
     render_network_compact(app, frame, right[0]);
     render_mempool_compact(app, frame, right[1]);
 }
@@ -140,6 +146,58 @@ fn render_recent_blocks(app: &App, frame: &mut Frame, area: Rect) {
     }
 
     frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+fn render_block_chart(app: &App, frame: &mut Frame, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Block Weights");
+
+    if app.recent_blocks.is_empty() {
+        frame.render_widget(Paragraph::new("Waiting for data...").block(block), area);
+        return;
+    }
+
+    const MAX_WEIGHT: f64 = 4_000_000.0;
+    const BAR_WIDTH: u16 = 10;
+    const BAR_GAP: u16 = 2;
+    let inner = block.inner(area);
+    let per_bar = BAR_WIDTH + BAR_GAP;
+    let bars_fit = if per_bar > 0 {
+        ((inner.width + BAR_GAP) / per_bar).max(1) as usize
+    } else {
+        1
+    };
+    let start = app.recent_blocks.len().saturating_sub(bars_fit);
+    let visible_blocks = &app.recent_blocks[start..];
+
+    let bars: Vec<Bar> = visible_blocks
+        .iter()
+        .map(|b| {
+            let pct = (b.total_weight as f64 / MAX_WEIGHT * 100.0).min(100.0) as u64;
+            let color = if pct >= 75 {
+                Color::Green
+            } else if pct >= 50 {
+                Color::Yellow
+            } else {
+                Color::Red
+            };
+
+            Bar::default()
+                .value(pct)
+                .label(Line::from(fmt_number(b.height)))
+                .text_value(format!("{} tx", b.txs))
+                .style(Style::default().fg(color))
+        })
+        .collect();
+
+    let chart = BarChart::default()
+        .block(block)
+        .data(BarGroup::default().bars(&bars))
+        .bar_width(BAR_WIDTH)
+        .bar_gap(BAR_GAP);
+
+    frame.render_widget(chart, area);
 }
 
 fn render_chain_details(app: &App, frame: &mut Frame, area: Rect) {
@@ -187,23 +245,13 @@ fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
 
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
     let active_color = if info.networkactive {
         Color::Green
     } else {
         Color::Red
-    };
-
-    let services = if info.localservicesnames.is_empty() {
-        "—".to_string()
-    } else if info.localservicesnames.len() <= 2 {
-        info.localservicesnames.join(", ")
-    } else {
-        format!(
-            "{}, {} +{}",
-            info.localservicesnames[0],
-            info.localservicesnames[1],
-            info.localservicesnames.len() - 2
-        )
     };
 
     let lines = vec![
@@ -220,13 +268,112 @@ fn render_network_compact(app: &App, frame: &mut Frame, area: Rect) {
             ),
             Color::White,
         ),
-        kv("Version", info.subversion.clone(), Color::White),
+        kv("User Agent", info.subversion.clone(), Color::White),
+        kv("Version", info.version.to_string(), Color::White),
         kv("Protocol", fmt_number(info.protocolversion), Color::White),
         kv("Relay Fee", fmt_sat_per_vb(info.relayfee), Color::White),
-        kv("Services", services, Color::White),
+        kv(
+            "Services",
+            info.localservicesnames.join(", "),
+            Color::White,
+        ),
     ];
 
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    let net_table_h = if info.networks.is_empty() {
+        0
+    } else {
+        1 + info.networks.len() as u16
+    };
+    let addr_h = if info.localaddresses.is_empty() {
+        1
+    } else {
+        1 + info.localaddresses.len() as u16
+    };
+
+    let chunks = Layout::vertical([
+        Constraint::Length(8),
+        Constraint::Length(net_table_h),
+        Constraint::Length(addr_h),
+    ])
+    .split(inner);
+
+    frame.render_widget(Paragraph::new(lines), chunks[0]);
+
+    if !info.networks.is_empty() {
+        let header = Row::new(["Network", "Reachable", "Limited", "Proxy"]).style(
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        );
+        let rows: Vec<Row> = info
+            .networks
+            .iter()
+            .map(|n| {
+                let color = if n.reachable {
+                    Color::Green
+                } else {
+                    Color::Red
+                };
+                Row::new(vec![
+                    Cell::from(n.name.clone()),
+                    Cell::from(if n.reachable { "yes" } else { "no" })
+                        .style(Style::default().fg(color)),
+                    Cell::from(if n.limited { "yes" } else { "no" }),
+                    Cell::from(if n.proxy.is_empty() {
+                        "—".to_string()
+                    } else {
+                        n.proxy.clone()
+                    }),
+                ])
+            })
+            .collect();
+        let widths = [
+            Constraint::Length(10),
+            Constraint::Length(10),
+            Constraint::Length(8),
+            Constraint::Min(10),
+        ];
+        frame.render_widget(
+            Table::new(rows, widths).header(header).column_spacing(1),
+            chunks[1],
+        );
+    }
+
+    if info.localaddresses.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                "No local addresses",
+                Style::default().fg(Color::DarkGray),
+            ))),
+            chunks[2],
+        );
+    } else {
+        let header = Row::new(["Address", "Port", "Score"]).style(
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        );
+        let rows: Vec<Row> = info
+            .localaddresses
+            .iter()
+            .map(|a| {
+                Row::new(vec![
+                    Cell::from(a.address.clone()),
+                    Cell::from(a.port.to_string()),
+                    Cell::from(a.score.to_string()),
+                ])
+            })
+            .collect();
+        let widths = [
+            Constraint::Min(20),
+            Constraint::Length(6),
+            Constraint::Length(6),
+        ];
+        frame.render_widget(
+            Table::new(rows, widths).header(header).column_spacing(1),
+            chunks[2],
+        );
+    }
 }
 
 fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
@@ -253,7 +400,11 @@ fn render_mempool_compact(app: &App, frame: &mut Frame, area: Rect) {
     let lines = vec![
         kv("Transactions", fmt_number(info.size), Color::White),
         kv("Virtual Size", fmt_bytes(info.bytes), Color::White),
-        kv("Memory", fmt_bytes(info.usage), Color::White),
+        kv(
+            "Memory",
+            format!("{} / {}", fmt_bytes(info.usage), fmt_bytes(info.maxmempool)),
+            Color::White,
+        ),
         kv("Total Fees", fmt_btc(info.total_fee.as_f64()), Color::White),
         kv(
             "Min Fee",

@@ -8,9 +8,7 @@ Terminal UI for monitoring and interacting with a running Bitcoin Core node.
 
 ### Tabs
 
-- **Dashboard** — blockchain sync progress, network overview, mempool summary with gauges
-- **Mempool** — transaction count, fees, memory usage gauge, recent blocks bar chart
-- **Network** — connection details, per-network reachability, local addresses
+- **Dashboard** — blockchain sync progress, mempool summary, network details with per-network reachability and local addresses, recent blocks, gauges
 - **Peers** — table with ID, address, type, direction, ping, traffic, sync height, v2 transport status
 - **RPC** — browse non-wallet RPC methods (blockchain, mempool, mining, network, util, etc.) with inline help, type arguments, execute calls, and view results
 - **Wallet** — browse wallet and rawtransactions RPC methods with inline help, type arguments, execute calls, and view results
@@ -90,7 +88,7 @@ The UI uses a two-level focus model: **tab bar** (top-level navigation) and **co
 | Key | Action |
 |-----|--------|
 | `h` / `l` / `←` / `→` | Switch tab |
-| `d/m/n` | Select Dashboard/Mempool/Network tab |
+| `d` | Select Dashboard tab |
 | `p/b/r/w/t/z` | Enter Peers/PSBT/RPC/Wallet/Transactions/ZMQ content |
 | `Enter` | Enter tab content (Transactions: opens search) |
 | `q` / `Esc` | Quit |

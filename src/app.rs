@@ -13,8 +13,6 @@ use crate::wallet_schema::{RpcMethod, load_non_wallet_methods, load_wallet_metho
 pub enum Tab {
     #[default]
     Dashboard,
-    Mempool,
-    Network,
     Peers,
     Psbt,
     Transactions,
@@ -24,10 +22,8 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: [Tab; 9] = [
+    pub const ALL: [Tab; 7] = [
         Tab::Dashboard,
-        Tab::Mempool,
-        Tab::Network,
         Tab::Peers,
         Tab::Psbt,
         Tab::Rpc,
@@ -39,8 +35,6 @@ impl Tab {
     pub fn title(self) -> &'static str {
         match self {
             Tab::Dashboard => "Dashboard",
-            Tab::Mempool => "Mempool",
-            Tab::Network => "Network",
             Tab::Peers => "Peers",
             Tab::Psbt => "PSBT",
             Tab::Rpc => "RPC",
@@ -52,9 +46,7 @@ impl Tab {
 
     pub fn next(self) -> Tab {
         match self {
-            Tab::Dashboard => Tab::Mempool,
-            Tab::Mempool => Tab::Network,
-            Tab::Network => Tab::Peers,
+            Tab::Dashboard => Tab::Peers,
             Tab::Peers => Tab::Psbt,
             Tab::Psbt => Tab::Rpc,
             Tab::Rpc => Tab::Wallet,
@@ -67,9 +59,7 @@ impl Tab {
     pub fn prev(self) -> Tab {
         match self {
             Tab::Dashboard => Tab::Zmq,
-            Tab::Mempool => Tab::Dashboard,
-            Tab::Network => Tab::Mempool,
-            Tab::Peers => Tab::Network,
+            Tab::Peers => Tab::Dashboard,
             Tab::Psbt => Tab::Peers,
             Tab::Rpc => Tab::Psbt,
             Tab::Wallet => Tab::Rpc,
@@ -620,8 +610,6 @@ impl App {
                     KeyCode::Enter => self.enter_tab(self.tab),
                     KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
                     KeyCode::Char('d') => self.tab = Tab::Dashboard,
-                    KeyCode::Char('m') => self.tab = Tab::Mempool,
-                    KeyCode::Char('n') => self.tab = Tab::Network,
                     KeyCode::Char('p') => self.enter_tab(Tab::Peers),
                     KeyCode::Char('b') => self.enter_tab(Tab::Psbt),
                     KeyCode::Char('r') => self.enter_tab(Tab::Rpc),
