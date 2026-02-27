@@ -379,7 +379,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
                     }
                 }
                 if changed {
-                    let _ = tx.send(Event::ChainTipsEnriched(Box::new(tips))).await;
+                    let _ = tx.send(Event::ChainTipsEnriched(tips)).await;
                 }
             }
 
@@ -407,7 +407,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
                                 updated.push(stats);
                                 updated.sort_by_key(|b| b.height);
                                 let snapshot = updated.clone();
-                                let _ = tx.send(Event::RecentBlocksComplete(Box::new(snapshot))).await;
+                                let _ = tx.send(Event::RecentBlocksComplete(snapshot)).await;
                             }
                         }
                     } else {
@@ -426,7 +426,7 @@ fn spawn_polling(rpc: Arc<RpcClient>, tx: mpsc::Sender<Event>, interval_secs: u6
 
                     if !updated.is_empty() {
                         cached_recent_blocks = updated.clone();
-                        let _ = tx.send(Event::RecentBlocksComplete(Box::new(updated))).await;
+                        let _ = tx.send(Event::RecentBlocksComplete(updated)).await;
                     }
 
                     last_tip = Some(tip_hash);

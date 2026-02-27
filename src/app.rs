@@ -122,8 +122,8 @@ pub enum Event {
     Key(KeyEvent),
     Tick,
     PollComplete(Box<PollResult>),
-    RecentBlocksComplete(Box<Vec<BlockStats>>),
-    ChainTipsEnriched(Box<Vec<ChainTip>>),
+    RecentBlocksComplete(Vec<BlockStats>),
+    ChainTipsEnriched(Vec<ChainTip>),
     SearchComplete(u64, Box<Result<SearchResult, String>>),
     WalletRpcComplete(u64, Box<Result<String, String>>),
     RpcComplete(u64, Box<Result<String, String>>),
@@ -436,10 +436,10 @@ impl App {
             Event::Tick => self.advance_tx_rate(),
             Event::PollComplete(result) => self.handle_poll(*result),
             Event::RecentBlocksComplete(blocks) => {
-                self.recent_blocks = *blocks;
+                self.recent_blocks = blocks;
             }
             Event::ChainTipsEnriched(tips) => {
-                self.chaintips = Some(*tips);
+                self.chaintips = Some(tips);
             }
             Event::SearchComplete(request_id, result) => {
                 if self.transactions.in_flight_request != Some(request_id) {
