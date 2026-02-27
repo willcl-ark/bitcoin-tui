@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
 use crate::app::{App, InputMode, PsbtFileMode};
@@ -102,12 +102,9 @@ fn render_picker(app: &App, frame: &mut Frame, area: Rect) {
         .psbt
         .picker_entries
         .iter()
-        .enumerate()
-        .map(|(idx, entry)| {
+        .map(|entry| {
             let prefix = if entry.is_dir { "d " } else { "f " };
-            let style = if idx == app.psbt.picker_selected {
-                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
-            } else if entry.is_dir {
+            let style = if entry.is_dir {
                 Style::default().fg(Color::Cyan)
             } else {
                 Style::default()
@@ -137,14 +134,27 @@ fn render_picker(app: &App, frame: &mut Frame, area: Rect) {
     }
 
     let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(popup);
-    frame.render_widget(
-        List::new(items).block(
+    let mut state = ListState::default();
+    if !app.psbt.picker_entries.is_empty() {
+        state.select(Some(
+            app.psbt
+                .picker_selected
+                .min(app.psbt.picker_entries.len().saturating_sub(1)),
+        ));
+    }
+
+    frame.render_stateful_widget(
+        List::new(items)
+            .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
                 .border_style(Style::default().fg(Color::Cyan)),
-        ),
+            )
+            .highlight_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> "),
         chunks[0],
+        &mut state,
     );
     frame.render_widget(Paragraph::new(Line::from(help)), chunks[1]);
 }
