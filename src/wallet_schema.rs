@@ -42,14 +42,14 @@ pub struct RpcParam {
 }
 
 pub fn load_wallet_methods() -> Vec<RpcMethod> {
-    load_methods(|cat| matches!(cat, Some("wallet" | "rawtransactions")))
+    load_methods(|cat| matches!(cat, Some("wallet")))
         .into_iter()
         .filter(|m| !m.name.to_lowercase().contains("psbt"))
         .collect()
 }
 
 pub fn load_non_wallet_methods() -> Vec<RpcMethod> {
-    load_methods(|cat| !matches!(cat, Some("wallet" | "rawtransactions")))
+    load_methods(|cat| !matches!(cat, Some("wallet")))
 }
 
 fn load_methods(filter: impl Fn(Option<&str>) -> bool) -> Vec<RpcMethod> {
